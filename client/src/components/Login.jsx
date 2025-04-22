@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { ChevronLeft, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';  // Import useNavigate
 
 export default function Login() {
+  const navigate = useNavigate();  // Initialize navigate function
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,13 +31,14 @@ export default function Login() {
       if (!response.ok) {
         throw new Error(data.message || 'Login failed');
       }
-
+      
       // Handle the JWT token
       localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
       setSuccess(true);
-      
-      // You could redirect the user here or update app state
-      console.log('Login successful', data);
+
+      // Redirect to dashboard after successful login
+      navigate('/dashboard');  // Redirect to dashboard route after successful login
     } catch (err) {
       setError(err.message || 'An error occurred during login');
     } finally {

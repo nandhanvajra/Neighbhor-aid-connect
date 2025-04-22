@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users,
   MessageCircle,
@@ -7,15 +7,55 @@ import {
   CheckCircle,
   Home,
   LogOut,
-  ChevronRight,
   Bell,
   FileText,
   Star
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function ResidentDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
+  const [user, setUser] = useState(null);
+  const [volunteers, setVolunteers] = useState([]);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    try {
+      const token = localStorage.getItem('token');
+      const userData = localStorage.getItem('user');
+      if (!token || !userData) {
+        navigate('/login');
+        return;
+      }
+
+      const parsedUser = JSON.parse(userData);
+      setUser(parsedUser);
+    } catch (error) {
+      console.error('Invalid user JSON in localStorage:', error);
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      navigate('/login');
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    if (activeTab === 'chats') {
+      fetch(`http://localhost:3000/api/volunteers`)
+        .then(res => res.json())
+        .then(data => {
+          console.log('Volunteers response:', data);
+          if (Array.isArray(data)) {
+            setVolunteers(data);
+          } else {
+            setVolunteers([]);
+          }
+        })
+        .catch(err => {
+          console.error('Error loading volunteers', err);
+          setVolunteers([]);
+        });
+    }
+  }, [activeTab]);
 
   const navLinks = [
     { id: 'overview', label: 'Overview', icon: Home },
@@ -27,6 +67,12 @@ export default function ResidentDashboard() {
     { id: 'logout', label: 'Logout', icon: LogOut }
   ];
 
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    navigate('/login');
+  };
+
   return (
     <div className="flex min-h-screen font-sans bg-gray-100">
       {/* Sidebar */}
@@ -36,12 +82,16 @@ export default function ResidentDashboard() {
           {navLinks.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => setActiveTab(id)}
+              onClick={() => {
+                if (id === 'logout') handleLogout();
+                else setActiveTab(id);
+              }}
               className={`flex items-center text-left text-gray-700 hover:text-orange-500 ${
                 activeTab === id ? 'text-orange-500 font-semibold' : ''
               }`}
             >
-              <Icon className="mr-2" size={20} /> {label}
+              <Icon className="mr-2" size={20} />
+              {label}
             </button>
           ))}
         </nav>
@@ -49,9 +99,9 @@ export default function ResidentDashboard() {
 
       {/* Main Content */}
       <main className="flex-1 p-6">
-        {activeTab === 'overview' && (
+        {activeTab === 'overview' && user && (
           <div>
-            <h1 className="text-3xl font-bold text-orange-500 mb-2">Welcome, Ram from House 20 👋</h1>
+            <h1 className="text-3xl font-bold text-orange-500 mb-2">Welcome, {user.name} 👋</h1>
             <p className="text-gray-700 mb-6">You have 2 active requests • 1 maid assigned • 3 new messages</p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -69,7 +119,7 @@ export default function ResidentDashboard() {
           </div>
         )}
 
-        {activeTab === 'requests' && (
+        {activeTab === 'requests' && user && (
           <section>
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Your Help Requests</h2>
             <div className="bg-white p-4 rounded shadow">
@@ -83,7 +133,7 @@ export default function ResidentDashboard() {
           </section>
         )}
 
-        {activeTab === 'staff' && (
+        {activeTab === 'staff' && user && (
           <section>
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Suggested Staff for You</h2>
             <div className="bg-white p-4 rounded shadow">
@@ -96,33 +146,32 @@ export default function ResidentDashboard() {
           </section>
         )}
 
-        {activeTab === 'chats' && (
+        {activeTab === 'chats' && user && (
           <section>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Chat Channels</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Volunteers to Chat With</h2>
             <ul className="space-y-2">
-              {['#house20', '#residents', '#maids'].map(channel => (
-                <li key={channel} className="bg-white p-3 rounded shadow hover:shadow-md flex items-center justify-between">
-                  <span className="text-gray-700 font-medium">{channel}</span>
-                  <Link to={`/chat/${channel.replace('#', '')}`} className="text-orange-500 hover:underline">View Messages</Link>
+              {volunteers.map(vol => (
+                <li key={vol._id} className="bg-white p-3 rounded shadow hover:shadow-md flex items-center justify-between">
+                  <span className="text-gray-700 font-medium">{vol.name}</span>
+                  <Link to={`/chat/${vol._id}`} className="text-orange-500 hover:underline">Message</Link>
                 </li>
               ))}
             </ul>
           </section>
         )}
 
-        {activeTab === 'house' && (
+        {activeTab === 'house' && user && (
           <section>
             <h2 className="text-2xl font-bold text-gray-800 mb-4">House Summary</h2>
             <div className="bg-white p-4 rounded shadow">
-              <p className="text-gray-700">House Number: 20</p>
-              <p className="text-gray-700">Residents: You, Mom, Dad</p>
+              <p className="text-gray-700">House Number: {user.houseNumber || 'Not Assigned'}</p>
               <p className="text-gray-700">Assigned Staff: Neha (Cook), Kavita (Maid)</p>
               <p className="text-gray-700">Last service used: Plumber (3 days ago)</p>
             </div>
           </section>
         )}
 
-        {activeTab === 'notifications' && (
+        {activeTab === 'notifications' && user && (
           <section>
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Notifications</h2>
             <div className="bg-white p-4 rounded shadow space-y-2">

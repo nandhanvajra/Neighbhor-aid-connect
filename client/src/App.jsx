@@ -7,6 +7,7 @@ import Login from './components/Login'
 import Signup from './components/Signup'
 import DashBoard from './components/dashboard'
 import PostRequest from './components/PostReqest'
+import ChatApplication from './components/ChatApplication'
 function App() {
   const [count, setCount] = useState(0)
 
@@ -19,6 +20,7 @@ function App() {
             <Route path='/signup' element={<Signup/>}/>
             <Route path='/dashboard' element={<DashBoard/>}/>
             <Route path='/post-request' element={<PostRequest/>}/>
+            <Route path='/chat/:chatid' element={<ChatApplication/>}/>
           </Routes>
       
       </>

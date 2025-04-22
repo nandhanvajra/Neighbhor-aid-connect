@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 export default function PostRequest() {
+  const navigate=useNavigate()
   const [formData, setFormData] = useState({
     category: '',
     description: '',
@@ -9,28 +11,54 @@ export default function PostRequest() {
     preferredTime: '',
     addressNote: ''
   });
+  
+  const [message, setMessage] = useState({ text: '', type: '' });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
+      console.log('Using token:', token);
+      
+      if (!token) {
+        setMessage({ text: 'No authentication token found. Please log in again.', type: 'error' });
+        return;
+      }
+      
       const config = {
         headers: {
           Authorization: `Bearer ${token}`
         }
       };
-      await axios.post('/api/requests', formData, config);
-      alert('Help request posted successfully!');
+      
+      // Use the full URL to your backend
+      const response = await axios.post('http://localhost:3000/api/requests', formData, config);
+      
+      console.log('Response:', response.data);
+      setMessage({ text: 'Help request posted successfully!', type: 'success' });
       setFormData({ category: '', description: '', urgency: '', preferredTime: '', addressNote: '' });
+      navigate('/dashboard')
     } catch (err) {
-      console.error(err);
-      alert('Error posting request.');
+      console.error('Error details:', err);
+      setMessage({ 
+        text: `Error posting request: ${err.response?.data?.message || err.message}`, 
+        type: 'error' 
+      });
     }
   };
 
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white shadow rounded mt-8 font-sans">
       <h2 className="text-3xl font-bold text-orange-500 mb-6 text-center">Post Help Request</h2>
+      
+      {message.text && (
+        <div className={`mb-4 p-3 rounded ${
+          message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+        }`}>
+          {message.text}
+        </div>
+      )}
+      
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Service Category</label>
