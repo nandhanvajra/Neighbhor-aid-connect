@@ -36,6 +36,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api', userRoutes); // this handles /volunteers
 app.use('/api/requests', requestRoutes);
 
+
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/neighbhor-aid-connect')
   .then(() => console.log('MongoDB connected'))

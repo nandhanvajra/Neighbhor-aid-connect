@@ -1,14 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const Request = require('../models/requestSchema');
+const User = require('../models/userSchema');
 const auth = require('../middleware/auth');
 
 // POST /api/requests - Create a new help request
 router.post('/', auth, async (req, res) => {
   console.log('Received request creation with data:', req.body);
+
   try {
     const { category, description, urgency, preferredTime, addressNote } = req.body;
-    
+    console.log(category)
     // Create new request
     const newRequest = new Request({
       userId: req.user.userId,
@@ -41,6 +43,26 @@ router.post('/', auth, async (req, res) => {
 });
 
 // GET /api/requests - Get all requests for the logged in user
+router.get('/all', auth, async (req, res) => {
+    try {
+        const requests = await Request.find();
+        res.status(200).json({ success: true, requests });
+    } catch (err) {
+        console.error('Get requests error:', err);
+        res.status(500).json({ success: false, message: 'Server error', error: err.message });
+    }
+});
+
+router.get('/allusers', auth, async (req, res) => {
+    try {
+        const requests = await User.find();
+        res.status(200).json({ success: true, requests });
+    } catch (err) {
+        console.error('Get requests error:', err);
+        res.status(500).json({ success: false, message: 'Server error', error: err.message });
+    }
+});
+
 router.get('/', auth, async (req, res) => {
   try {
     const requests = await Request.find({ userId: req.user.userId }).sort({ createdAt: -1 });
@@ -75,7 +97,7 @@ router.get('/:id', auth, async (req, res) => {
 // PUT /api/requests/:id - Update a request
 router.put('/:id', auth, async (req, res) => {
   try {
-    const { category, description, urgency, preferredTime, addressNote } = req.body;
+    const { category, description, urgency, preferredTime, addressNote, completedBy, status } = req.body;
     
     // Find request
     let request = await Request.findById(req.params.id);
@@ -84,17 +106,47 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Request not found' });
     }
     
-    // Check if user owns this request
-    if (request.userId.toString() !== req.user.userId) {
-      return res.status(403).json({ success: false, message: 'Not authorized to update this request' });
+    // Check if this is an "offer help" request
+    const isOfferingHelp = completedBy !== undefined && status === 'in-progress';
+    
+    // If not offering help, only the owner can update
+    if (!isOfferingHelp && request.userId.toString() !== req.user.userId) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Not authorized to update this request',
+        isOfferingHelp: isOfferingHelp,
+        requestUserId: request.userId,
+        currentUserId: req.user.userId
+      });
     }
+    
+    // Prepare update object with only the fields that exist in the request
+    const updateObj = { updatedAt: Date.now() };
+    if (category !== undefined) updateObj.category = category;
+    if (description !== undefined) updateObj.description = description;
+    if (urgency !== undefined) updateObj.urgency = urgency;
+    if (preferredTime !== undefined) updateObj.preferredTime = preferredTime;
+    if (addressNote !== undefined) updateObj.addressNote = addressNote;
+    if (completedBy !== undefined) updateObj.completedBy = completedBy;
+    if (status !== undefined) updateObj.status = status;
+    
+    console.log('Updating request with:', updateObj);
     
     // Update request
     request = await Request.findByIdAndUpdate(
       req.params.id,
-      { category, description, urgency, preferredTime, addressNote, updatedAt: Date.now() },
+      updateObj,
       { new: true }
     );
+    
+    // Notify through Socket.io if available
+    if (req.io && isOfferingHelp) {
+      req.io.to(request.userId.toString()).emit('requestHelp', {
+        requestId: request._id,
+        helper: req.user.userId,
+        status: 'in-progress'
+      });
+    }
     
     res.status(200).json({ success: true, message: 'Request updated successfully', request });
   } catch (err) {

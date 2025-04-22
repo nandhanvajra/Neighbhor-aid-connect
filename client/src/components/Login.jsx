@@ -31,10 +31,18 @@ export default function Login() {
       if (!response.ok) {
         throw new Error(data.message || 'Login failed');
       }
-      
-      // Handle the JWT token
+
+      // Explicitly ensure _id is used by manually mapping it
+      const user = data.user;
+      const userData = {
+        ...user,
+        _id: user._id || user.id,  // Ensure _id is stored, fallback to id if _id is missing
+      };
+
+      // Store the user data in localStorage with _id
       localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('user', JSON.stringify(userData));  // Store the updated user data with _id
+
       setSuccess(true);
 
       // Redirect to dashboard after successful login
