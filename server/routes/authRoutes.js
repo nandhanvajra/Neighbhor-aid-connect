@@ -9,7 +9,7 @@ const jwtSecret = 'superSecretHardcodedKey123';
 
 // POST /api/auth/signup
 router.post('/signup', async (req, res) => {
-  const { name, email, password, address } = req.body;
+   const { name, email, password, address ,isAdmin} = req.body;
   try {
     const existingUser = await User.findOne({ email });
     if (existingUser) {

@@ -45,7 +45,7 @@ export default function ResidentDashboard() {
       }
 
       const parsedUser = JSON.parse(userData);
-      parsedUser.isAdmin=true
+      // parsedUser.isAdmin=true
       console.log(parsedUser)
       setUser(parsedUser);
       setToken(storedToken);
@@ -421,10 +421,10 @@ export default function ResidentDashboard() {
         {activeTab === 'overview' && user && (
           <div>
             <h1 className="text-3xl font-bold text-orange-500 mb-2">Welcome, {user.name} 👋</h1>
-            <p className="text-gray-700 mb-6">You have 2 active requests • 1 maid assigned • 3 new messages</p>
+            {/* <p className="text-gray-700 mb-6">You have 2 active requests • 1 maid assigned • 3 new messages</p> */}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              {[{ label: 'Post Help Request', icon: PlusCircle, link: '/post-request' }, { label: 'My Requests', icon: CheckCircle, link: '/my-requests' }, { label: 'Service Directory', icon: Wrench, link: '/directory' }].map(({ label, icon: Icon, link }) => (
+              {[{ label: 'Post Help Request', icon: PlusCircle, link: '/post-request' }].map(({ label, icon: Icon, link }) => (
                 <Link
                   to={link}
                   key={label}
@@ -662,27 +662,8 @@ export default function ResidentDashboard() {
           </section>
         )}
 
-        {activeTab === 'house' && user && (
-          <section>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">House Summary</h2>
-            <div className="bg-white p-4 rounded shadow">
-              <p className="text-gray-700">House Number: {user.houseNumber || 'Not Assigned'}</p>
-              <p className="text-gray-700">Assigned Staff: Neha (Cook), Kavita (Maid)</p>
-              <p className="text-gray-700">Last service used: Plumber (3 days ago)</p>
-            </div>
-          </section>
-        )}
-
-        {activeTab === 'notifications' && user && (
-          <section>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Notifications</h2>
-            <div className="bg-white p-4 rounded shadow space-y-2">
-              <p className="text-gray-700">✅ Ramesh (Electrician) accepted your request</p>
-              <p className="text-gray-700">📨 You have 1 unread message in #maids</p>
-              <p className="text-gray-700">✅ Maid Kavita marked your task as completed</p>
-            </div>
-          </section>
-        )}
+        
+        
 
         {activeTab === 'directory' && user && (
           <section>
