@@ -4,22 +4,23 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const { Server } = require('socket.io');
+const config = require('./config/config');
 
 const authRoutes = require('./routes/authRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const userRoutes = require('./routes/userRoutes');
-// In your main server.js or app.js
+const volunteerRoutes = require('./routes/volunteerRoutes');
 const requestRoutes = require('./routes/requestRoutes');
 
 const app = express();
-const server = http.createServer(app); // <- http server
+const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: 'http://localhost:5173', methods: ['GET', 'POST'] }
+  cors: config.socket.cors
 });
 
 // Middleware
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+app.use(cors(config.cors));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -33,12 +34,13 @@ app.use((req, res, next) => {
 app.use('/api', authRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/messages', messageRoutes);
-app.use('/api', userRoutes); // this handles /volunteers
+app.use('/api/users', userRoutes);
+app.use('/api/volunteers', volunteerRoutes);
 app.use('/api/requests', requestRoutes);
 
 
 // MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/neighbhor-aid-connect')
+mongoose.connect(config.mongodb.uri, config.mongodb.options)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.error('MongoDB error:', err));
 
@@ -57,5 +59,4 @@ io.on('connection', socket => {
 });
 
 // Start the server
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(config.port, () => console.log(`Server running on port ${config.port}`));

@@ -21,6 +21,10 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import UserList from './UserList';
+import ServiceRequestModal from './ServiceRequestModal';
+import ClickableUserName from './ClickableUserName';
+import config from '../config/config';
+import io from 'socket.io-client';
 
 export default function ResidentDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -33,6 +37,14 @@ export default function ResidentDashboard() {
   const [completedTasks, setCompletedTasks] = useState([]);
   const [directoryData, setDirectoryData] = useState([]);
   const [directoryLoading, setDirectoryLoading] = useState(false);
+  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
+  const [selectedStaffMember, setSelectedStaffMember] = useState(null);
+  // Notifications state (placeholder for now)
+  const [notifications, setNotifications] = useState([
+    // Example notification
+    // { title: 'Welcome!', body: 'Thanks for joining Neighbor Aid Connect.', time: 'Just now' }
+  ]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -61,7 +73,7 @@ export default function ResidentDashboard() {
   useEffect(() => {
     if ((activeTab === 'overview' || activeTab === 'requests') && token) {
       // Fetch all requests when on overview or requests tab with auth token
-      fetch('http://localhost:3000/api/requests/all', {
+      fetch(`${config.apiBaseUrl}/api/requests/all`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -78,6 +90,11 @@ export default function ResidentDashboard() {
           // Check if data has a requests property that is an array
           if (data && data.requests && Array.isArray(data.requests)) {
             setAllRequests(data.requests);
+            
+            // Debug: Log the first request to see its structure
+            if (data.requests.length > 0) {
+              console.log('First request structure:', data.requests[0]);
+            }
             
             // For overview tab, filter out user's own requests for display
             if (activeTab === 'overview' && user) {
@@ -96,11 +113,42 @@ export default function ResidentDashboard() {
     }
   }, [activeTab, user, token]);
 
+  // Effect to listen for refresh requests event
+  useEffect(() => {
+    const handleRefreshRequests = () => {
+      if ((activeTab === 'overview' || activeTab === 'requests') && token) {
+        fetch(`${config.apiBaseUrl}/api/requests/all`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+          .then(res => {
+            if (!res.ok) {
+              throw new Error(`HTTP error! Status: ${res.status}`);
+            }
+            return res.json();
+          })
+          .then(data => {
+            if (data && data.requests && Array.isArray(data.requests)) {
+              setAllRequests(data.requests);
+            }
+          })
+          .catch(err => {
+            console.error('Error refreshing requests:', err);
+          });
+      }
+    };
+
+    window.addEventListener('refreshRequests', handleRefreshRequests);
+    return () => window.removeEventListener('refreshRequests', handleRefreshRequests);
+  }, [activeTab, token]);
+
   // New effect to fetch service directory data
   useEffect(() => {
     if (activeTab === 'directory' && token) {
       setDirectoryLoading(true);
-      fetch('http://localhost:3000/api/directory', {
+      fetch(`${config.apiBaseUrl}/api/directory`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -129,7 +177,7 @@ export default function ResidentDashboard() {
   useEffect(() => {
     if (activeTab === 'directory' && token && user) {
       // Fetch tasks completed by the current user
-      fetch('http://localhost:3000/api/requests/all', {
+      fetch(`${config.apiBaseUrl}/api/requests/all`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -161,7 +209,7 @@ export default function ResidentDashboard() {
 
   useEffect(() => {
     if (activeTab === 'chats' && token) {
-      fetch(`http://localhost:3000/api/volunteers`, {
+      fetch(`${config.apiBaseUrl}/api/volunteers`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -188,22 +236,93 @@ export default function ResidentDashboard() {
     }
   }, [activeTab, token]);
 
-  const getNavLinks = () => {
-    const baseLinks = [
-      { id: 'overview', label: 'Overview', icon: Home },
-      { id: 'requests', label: 'Requests', icon: FileText },
-      { id: 'staff', label: 'Staff', icon: Star },
-      { id: 'chats', label: 'Chats', icon: MessageCircle },
-      { id: 'house', label: 'House', icon: Users },
-      { id: 'notifications', label: 'Notifications', icon: Bell },
-      
-      { id: 'directory', label: 'Service Directory', icon: Wrench },
-    ];
+  useEffect(() => {
+    if (!user || !user._id) return;
     
-    // Add admin-only link if user is admin
-    if (isAdmin) {
-      baseLinks.push({ id: 'assignroles', label: 'Manage Roles', icon: UserCog });
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
     }
+    
+    // Set up socket.io connection
+    const socket = io(config.apiBaseUrl);
+    // Join a room for this user
+    socket.emit('joinRoom', user._id);
+
+    // Function to show browser notification
+    const showBrowserNotification = (title, body) => {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(title, {
+          body: body,
+          icon: '/vite.svg', // You can replace with your app icon
+          badge: '/vite.svg'
+        });
+      }
+    };
+
+    // Listen for someone offering help to our request
+    socket.on('requestHelp', (data) => {
+      const notification = {
+        title: 'Someone offered to help!',
+        body: `A user has offered to help with your request.`,
+        time: new Date().toLocaleString(),
+        ...data
+      };
+      setNotifications(prev => [notification, ...prev]);
+      setUnreadNotifications(prev => prev + 1);
+      showBrowserNotification(notification.title, notification.body);
+    });
+
+    // Listen for new help requests matching our preferences (future enhancement)
+    socket.on('newHelpRequest', (data) => {
+      const notification = {
+        title: 'New Help Request',
+        body: `A new help request was posted that matches your preferences.`,
+        time: new Date().toLocaleString(),
+        ...data
+      };
+      setNotifications(prev => [notification, ...prev]);
+      setUnreadNotifications(prev => prev + 1);
+      showBrowserNotification(notification.title, notification.body);
+    });
+
+    // Listen for direct service requests (when someone requests services from you)
+    socket.on('directServiceRequest', (data) => {
+      const notification = {
+        title: 'Direct Service Request',
+        body: `${data.fromUserName} has requested your services for ${data.category}.`,
+        time: new Date().toLocaleString(),
+        ...data
+      };
+      setNotifications(prev => [notification, ...prev]);
+      setUnreadNotifications(prev => prev + 1);
+      showBrowserNotification(notification.title, notification.body);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [user]);
+
+  const getNavLinks = () => {
+    const iconMap = {
+      'Home': Home,
+      'FileText': FileText,
+      'Star': Star,
+      'MessageCircle': MessageCircle,
+      'Users': Users,
+      'Bell': Bell,
+      'Wrench': Wrench,
+      'UserCog': UserCog,
+      'LogOut': LogOut
+    };
+    
+    const baseLinks = config.dashboardNavItems
+      .filter(item => !item.adminOnly || isAdmin)
+      .map(item => ({
+        ...item,
+        icon: iconMap[item.icon] || Home
+      }));
     
     // Add logout at the end
     baseLinks.push({ id: 'logout', label: 'Logout', icon: LogOut });
@@ -213,36 +332,47 @@ export default function ResidentDashboard() {
 
   // Function to determine badge color based on urgency
   const getUrgencyColor = (urgency) => {
-    switch(urgency?.toLowerCase()) {
-      case 'high':
-        return 'bg-red-500';
-      case 'medium':
-        return 'bg-orange-500';
-      case 'low':
-        return 'bg-green-500';
-      default:
-        return 'bg-blue-500';
-    }
+    return config.urgencyColors[urgency?.toLowerCase()] || 'bg-blue-500';
   };
   
-  // Function to get category icon - using only icons available in lucide-react
+  // Function to get category icon - using dynamic configuration
   const getCategoryIcon = (category) => {
-    switch(category?.toLowerCase()) {
-      case 'plumbing':
-        return <Wrench className="text-blue-500" size={20} />;
-      case 'electrical':
-        return <Settings className="text-yellow-500" size={20} />;
-      case 'cleaning':
-        return <CheckCircle className="text-green-500" size={20} />;
-      default:
-        return <Wrench className="text-gray-500" size={20} />;
+    const iconMap = {
+      'Wrench': Wrench,
+      'Settings': Settings,
+      'CheckCircle': CheckCircle,
+      'Users': Users,
+      'Star': Star,
+      'Hammer': Hammer,
+      'MessageCircle': MessageCircle,
+      'Bell': Bell,
+      'FileText': FileText,
+      'Clock': Clock,
+      'Phone': Phone,
+      'Mail': Mail
+    };
+    
+    const categoryConfig = config.serviceCategories.find(cat => cat.value === category?.toLowerCase());
+    if (categoryConfig) {
+      const Icon = iconMap[categoryConfig.icon] || Wrench;
+      return <Icon className={`text-${categoryConfig.color}-500`} size={20} />;
     }
+    
+    return <Wrench className="text-gray-500" size={20} />;
   };
 
   const handleLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
     navigate('/login');
+  };
+
+  // Function to handle tab changes and clear notifications when viewing them
+  const handleTabChange = (tabId) => {
+    if (tabId === 'notifications') {
+      setUnreadNotifications(0);
+    }
+    setActiveTab(tabId);
   };
 
   // New function to handle offering help
@@ -253,7 +383,7 @@ export default function ResidentDashboard() {
     }
     console.log(`'''''''${requestId}`)
 
-    fetch(`http://localhost:3000/api/requests/${requestId}`, {
+    fetch(`${config.apiBaseUrl}/api/requests/${requestId}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -299,7 +429,7 @@ export default function ResidentDashboard() {
     const confirmed = window.confirm("Are you sure you want to mark this request as completed?");
     if (!confirmed) return;
 
-    fetch(`http://localhost:3000/api/requests/${requestId}`, {
+    fetch(`${config.apiBaseUrl}/api/requests/${requestId}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -335,6 +465,55 @@ export default function ResidentDashboard() {
       });
   };
 
+  // Function to handle opening service request modal
+  const handleRequestService = (staffMember) => {
+    setSelectedStaffMember(staffMember);
+    setIsServiceModalOpen(true);
+  };
+
+  // Function to handle service request submission
+  const handleServiceRequestSubmit = async (requestData) => {
+    if (!user || !token) {
+      alert("You must be logged in to request services");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${config.apiBaseUrl}/api/requests`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          category: requestData.serviceType,
+          description: requestData.description,
+          urgency: requestData.urgency,
+          preferredTime: `${requestData.preferredDate} ${requestData.preferredTime}`,
+          addressNote: requestData.address || requestData.additionalNotes,
+          staffMemberId: requestData.staffMemberId,
+          staffMemberName: requestData.staffMemberName
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to submit service request');
+      }
+
+      const result = await response.json();
+      alert(config.serviceRequestModal.successMessage);
+      
+      // Refresh the requests list
+      window.dispatchEvent(new Event('refreshRequests'));
+      
+    } catch (error) {
+      console.error('Error submitting service request:', error);
+      alert(config.serviceRequestModal.errorMessage.replace('{error}', error.message));
+      throw error; // Re-throw to let the modal handle the error
+    }
+  };
+
   // Function to delete a request
   const handleDeleteRequest = (requestId) => {
     if (!token || !user) {
@@ -345,7 +524,7 @@ export default function ResidentDashboard() {
     const confirmed = window.confirm("Are you sure you want to delete this request? This action cannot be undone.");
     if (!confirmed) return;
 
-    fetch(`http://localhost:3000/api/requests/${requestId}`, {
+    fetch(`${config.apiBaseUrl}/api/requests/${requestId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -403,7 +582,7 @@ export default function ResidentDashboard() {
               key={id}
               onClick={() => {
                 if (id === 'logout') handleLogout();
-                else setActiveTab(id);
+                else handleTabChange(id);
               }}
               className={`flex items-center text-left text-gray-700 hover:text-orange-500 ${
                 activeTab === id ? 'text-orange-500 font-semibold' : ''
@@ -411,6 +590,11 @@ export default function ResidentDashboard() {
             >
               <Icon className="mr-2" size={20} />
               {label}
+              {id === 'notifications' && unreadNotifications > 0 && (
+                <span className="ml-2 inline-block h-4 w-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
+                  {unreadNotifications}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -420,32 +604,56 @@ export default function ResidentDashboard() {
       <main className="flex-1 p-6">
         {activeTab === 'overview' && user && (
           <div>
-            <h1 className="text-3xl font-bold text-orange-500 mb-2">Welcome, {user.name} 👋</h1>
+            <h1 className="text-3xl font-bold text-orange-500 mb-2">{config.overview.welcomeMessage.replace('{name}', user.name)}</h1>
             {/* <p className="text-gray-700 mb-6">You have 2 active requests • 1 maid assigned • 3 new messages</p> */}
 
+            {/* Test Profile Navigation */}
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-700 mb-2">Debug: Test profile navigation</p>
+              <button
+                onClick={() => {
+                  console.log('Testing profile navigation for user:', user._id);
+                  window.location.href = `/profile/${user._id}`;
+                }}
+                className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+              >
+                Test My Profile
+              </button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              {[{ label: 'Post Help Request', icon: PlusCircle, link: '/post-request' }].map(({ label, icon: Icon, link }) => (
-                <Link
-                  to={link}
-                  key={label}
-                  className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-all text-center"
-                >
-                  <Icon size={32} className="text-orange-500 mx-auto mb-2" />
-                  <h3 className="text-lg font-semibold text-gray-800">{label}</h3>
-                </Link>
-              ))}
+              {config.quickActions.map(({ label, icon: IconName, link, description }) => {
+                const iconMap = {
+                  'PlusCircle': PlusCircle,
+                  'Wrench': Wrench,
+                  'MessageCircle': MessageCircle
+                };
+                const Icon = iconMap[IconName] || PlusCircle;
+                
+                return (
+                  <Link
+                    to={link}
+                    key={label}
+                    className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-all text-center group"
+                  >
+                    <Icon size={32} className="text-orange-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+                    <h3 className="text-lg font-semibold text-gray-800 mb-1">{label}</h3>
+                    <p className="text-sm text-gray-600">{description}</p>
+                  </Link>
+                );
+              })}
             </div>
 
             {/* Community Help Requests Section */}
             <div className="mt-8">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 space-y-2 md:space-y-0">
-                <h2 className="text-2xl font-bold text-gray-800">Community Help Requests</h2>
+                <h2 className="text-2xl font-bold text-gray-800">{config.overview.communityRequestsTitle}</h2>
                 
                 {/* Search Bar */}
                 <div className="relative w-full md:w-auto">
                   <input
                     type="text"
-                    placeholder="Search tasks or users..."
+                    placeholder={config.overview.searchPlaceholder}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full md:w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -459,13 +667,13 @@ export default function ResidentDashboard() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No.</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Urgency</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.number}</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.category}</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.description}</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.urgency}</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.time}</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.status}</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.action}</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -481,7 +689,13 @@ export default function ResidentDashboard() {
                               <div className="text-xs text-gray-500 italic mt-1">Note: {request.addressNote}</div>
                             )}
                             {request.userName && (
-                              <div className="text-xs text-gray-500 mt-1">Posted by: {request.userName}</div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                Posted by: <ClickableUserName userId={request.userId} userName={request.userName} />
+                                {/* Debug info */}
+                                <span className="text-xs text-gray-400 ml-2">
+                                  (ID: {request.userId})
+                                </span>
+                              </div>
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -497,22 +711,22 @@ export default function ResidentDashboard() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              request.status === 'completed' ? 'bg-green-100 text-green-800' : 
-                              request.status === 'in-progress' ? 'bg-blue-100 text-blue-800' : 
-                              'bg-yellow-100 text-yellow-800'
+                              config.statusColors[request.status] ? 
+                                `${config.statusColors[request.status].bg} ${config.statusColors[request.status].text}` : 
+                                'bg-yellow-100 text-yellow-800'
                             }`}>
                               {request.status || "pending"}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             {request.completedBy ? (
-                              <span className="text-gray-500">Already assigned</span>
+                              <span className="text-gray-500">{config.overview.alreadyAssignedText}</span>
                             ) : (
                               <button 
                                 onClick={() => handleOfferHelp(request._id)}
                                 className="text-orange-500 hover:text-orange-700"
                               >
-                                Offer Help
+                                {config.overview.offerHelpText}
                               </button>
                             )}
                           </td>
@@ -525,7 +739,7 @@ export default function ResidentDashboard() {
                 <div className="bg-white p-6 rounded-lg shadow text-center">
                   <AlertTriangle size={32} className="text-orange-500 mx-auto mb-2" />
                   <p className="text-gray-700">
-                    {searchTerm ? 'No results found for your search' : 'No community help requests at the moment.'}
+                    {searchTerm ? config.overview.noSearchResultsMessage : config.overview.noRequestsMessage}
                   </p>
                 </div>
               )}
@@ -535,7 +749,7 @@ export default function ResidentDashboard() {
 
         {activeTab === 'requests' && user && (
           <section>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Your Help Requests</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">{config.requests.title}</h2>
             
             {/* Loading state */}
             {!allRequests ? (
@@ -545,13 +759,13 @@ export default function ResidentDashboard() {
             ) : allRequests.filter(req => req.userId === user._id).length === 0 ? (
               <div className="bg-white p-6 rounded-lg shadow text-center">
                 <AlertTriangle size={32} className="text-orange-500 mx-auto mb-2" />
-                <p className="text-gray-700 mb-4">You haven't created any help requests yet.</p>
+                <p className="text-gray-700 mb-4">{config.requests.noRequestsMessage}</p>
                 <Link 
                   to="/post-request" 
                   className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
                 >
                   <PlusCircle size={18} className="mr-2" />
-                  Create New Request
+                  {config.requests.createNewRequestText}
                 </Link>
               </div>
             ) : (
@@ -571,28 +785,27 @@ export default function ResidentDashboard() {
                           </div>
                           <p className="text-gray-800 mb-3">{request.description}</p>
                           <p className="text-sm text-gray-500 mb-2">
-                            Posted {new Date(request.createdAt).toLocaleDateString()} • 
-                            {request.preferredTime && ` Preferred time: ${request.preferredTime} • `}
+                            {config.requests.postedText} {new Date(request.createdAt).toLocaleDateString()} • 
+                            {request.preferredTime && ` ${config.requests.preferredTimeText} ${request.preferredTime} • `}
                             {request.status === 'in-progress' && request.completedBy ? 
-                              <span className="font-medium text-blue-600"> Accepted by {request.completedByName || 'Volunteer'}</span> :
+                              <span className="font-medium text-blue-600"> {config.requests.acceptedByText} <ClickableUserName userId={request.completedBy} userName={request.completedByName || 'Volunteer'} /></span> :
                               request.status === 'completed' ?
-                              <span className="font-medium text-green-600"> Completed</span> :
-                              <span className="font-medium text-yellow-600"> Pending</span>
+                              <span className="font-medium text-green-600"> {config.requests.completedText}</span> :
+                              <span className="font-medium text-yellow-600"> {config.requests.pendingText}</span>
                             }
                           </p>
                           
                           {request.addressNote && (
-                            <p className="text-sm italic text-gray-500 mb-3">Note: {request.addressNote}</p>
+                            <p className="text-sm italic text-gray-500 mb-3">{config.requests.noteText} {request.addressNote}</p>
                           )}
                         </div>
                         
                         <span className={`px-3 py-1 text-sm font-semibold rounded-full ${
-                          request.status === 'completed' ? 'bg-green-100 text-green-800' : 
-                          request.status === 'in-progress' ? 'bg-blue-100 text-blue-800' : 
-                          'bg-yellow-100 text-yellow-800'
+                          config.statusColors[request.status] ? 
+                            `${config.statusColors[request.status].bg} ${config.statusColors[request.status].text}` : 
+                            'bg-yellow-100 text-yellow-800'
                         }`}>
-                          {request.status === 'in-progress' ? 'In Progress' : 
-                          request.status === 'completed' ? 'Completed' : 'Pending'}
+                          {config.requests.statusLabels[request.status] || 'Pending'}
                         </span>
                       </div>
                       
@@ -604,7 +817,7 @@ export default function ResidentDashboard() {
                             className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center"
                           >
                             <MessageCircle size={16} className="mr-2" />
-                            Chat with Helper
+                            {config.requests.chatWithHelperText}
                           </Link>
                         )}
                         
@@ -615,7 +828,7 @@ export default function ResidentDashboard() {
                             className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors flex items-center"
                           >
                             <CheckCircle size={16} className="mr-2" />
-                            Mark Completed
+                            {config.requests.markCompletedText}
                           </button>
                         )}
                         
@@ -625,7 +838,7 @@ export default function ResidentDashboard() {
                           className="px-4 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors flex items-center"
                         >
                           <AlertTriangle size={16} className="mr-2" />
-                          Delete Request
+                          {config.requests.deleteRequestText}
                         </button>
                       </div>
                     </div>
@@ -638,13 +851,35 @@ export default function ResidentDashboard() {
         {activeTab === 'staff' && user && (
           <section>
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Suggested Staff for You</h2>
-            <div className="bg-white p-4 rounded shadow">
-              <p className="font-bold text-gray-700">Neha (Cook)</p>
-              <p className="text-gray-500 text-sm">Available 3–6PM • Rated 4.8★ by 10 homes</p>
-              <div className="mt-2">
-                <button className="text-orange-500 hover:underline">Request Service</button>
+            {volunteers.length > 0 ? (
+              <div className="space-y-4">
+                {volunteers.map(vol => (
+                  <div key={vol._id} className="bg-white p-4 rounded shadow hover:shadow-md transition-all">
+                    <p className="font-bold text-gray-700">
+                      <ClickableUserName userId={vol._id} userName={vol.name} /> ({vol.role || 'Volunteer'})
+                    </p>
+                    <p className="text-gray-500 text-sm">
+                      {vol.availableHours ? `Available ${vol.availableHours} • ` : `Available ${config.staffConfig.defaultAvailableHours} • `}
+                      {vol.rating ? `Rated ${vol.rating}★ by ${vol.totalRatings || config.staffConfig.defaultTotalRatings} homes` : `Rated ${config.staffConfig.defaultRating}★ by ${config.staffConfig.defaultTotalRatings} homes`}
+                    </p>
+                    <div className="mt-2 flex gap-2">
+                      <button 
+                        onClick={() => handleRequestService(vol)}
+                        className="text-orange-500 hover:underline hover:text-orange-600 transition-colors"
+                      >
+                        Request Service
+                      </button>
+                      <Link to={`/chat/${vol._id}`} className="text-blue-500 hover:underline hover:text-blue-600 transition-colors">Message</Link>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
+            ) : (
+              <div className="bg-white p-6 rounded-lg shadow text-center">
+                <AlertTriangle size={32} className="text-orange-500 mx-auto mb-2" />
+                <p className="text-gray-700">No staff members available at the moment.</p>
+              </div>
+            )}
           </section>
         )}
 
@@ -654,11 +889,38 @@ export default function ResidentDashboard() {
             <ul className="space-y-2">
               {volunteers.map(vol => (
                 <li key={vol._id} className="bg-white p-3 rounded shadow hover:shadow-md flex items-center justify-between">
-                  <span className="text-gray-700 font-medium">{vol.name}</span>
+                  <span className="text-gray-700 font-medium">
+                    <ClickableUserName userId={vol._id} userName={vol.name} />
+                  </span>
                   <Link to={`/chat/${vol._id}`} className="text-orange-500 hover:underline">Message</Link>
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+
+        {activeTab === 'notifications' && user && (
+          <section>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Notifications</h2>
+            {(!notifications || notifications.length === 0) ? (
+              <div className="bg-white p-6 rounded-lg shadow text-center">
+                <Bell size={32} className="text-orange-500 mx-auto mb-2" />
+                <p className="text-gray-700">You have no notifications at this time.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {notifications.map((notif, idx) => (
+                  <div key={idx} className="bg-white p-4 rounded shadow flex items-center gap-4">
+                    <Bell className="text-orange-500" size={20} />
+                    <div>
+                      <p className="text-gray-800 font-medium">{notif.title || 'Notification'}</p>
+                      <p className="text-gray-600 text-sm">{notif.body || notif.message}</p>
+                      {notif.time && <p className="text-xs text-gray-400 mt-1">{notif.time}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         )}
 
@@ -672,6 +934,7 @@ export default function ResidentDashboard() {
             {directoryLoading ? (
               <div className="flex justify-center items-center h-48">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+                <p className="ml-3 text-gray-600">{config.serviceDirectory.loadingMessage}</p>
               </div>
             ) : completedTasks.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -690,7 +953,7 @@ export default function ResidentDashboard() {
                       <div className="space-y-2 text-sm text-gray-500">
                         {service.category && (
                           <div className="flex items-center">
-                            <span className="font-medium mr-2">Category:</span>
+                            <span className="font-medium mr-2">{config.serviceDirectory.categoryText}</span>
                             <span className={`px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800`}>
                               {service.category}
                             </span>
@@ -700,28 +963,28 @@ export default function ResidentDashboard() {
                         {service.availableHours && (
                           <div className="flex items-center">
                             <Clock size={16} className="mr-2" />
-                            <span>{service.availableHours}</span>
+                            <span>{config.serviceDirectory.availableHoursText} {service.availableHours}</span>
                           </div>
                         )}
                         
                         {service.phone && (
                           <div className="flex items-center">
                             <Phone size={16} className="mr-2" />
-                            <span>{service.phone}</span>
+                            <span>{config.serviceDirectory.phoneText} {service.phone}</span>
                           </div>
                         )}
                         
                         {service.email && (
                           <div className="flex items-center">
                             <Mail size={16} className="mr-2" />
-                            <span>{service.email}</span>
+                            <span>{config.serviceDirectory.emailText} {service.email}</span>
                           </div>
                         )}
                         
                         {service.rating && (
                           <div className="flex items-center">
                             <Star size={16} className="text-yellow-500 mr-2" />
-                            <span>{service.rating} ({service.totalRatings || 0} ratings)</span>
+                            <span>{config.serviceDirectory.ratingLabel} {service.rating} ({service.totalRatings || 0} {config.serviceDirectory.ratingText})</span>
                           </div>
                         )}
                       </div>
@@ -730,7 +993,7 @@ export default function ResidentDashboard() {
                         <button 
                           className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
                         >
-                          Request Service
+                          {config.serviceDirectory.requestServiceText}
                         </button>
                         
                         {service.phone && (
@@ -739,7 +1002,7 @@ export default function ResidentDashboard() {
                             className="px-4 py-2 border border-orange-500 text-orange-500 rounded-md hover:bg-orange-50 transition-colors flex items-center"
                           >
                             <Phone size={16} className="mr-1" />
-                            Call
+                            {config.serviceDirectory.callText}
                           </a>
                         )}
                       </div>
@@ -750,7 +1013,7 @@ export default function ResidentDashboard() {
             ) : (
               <div className="bg-white p-6 rounded-lg shadow text-center">
                 <AlertTriangle size={32} className="text-orange-500 mx-auto mb-2" />
-                <p className="text-gray-700">No service directory information available.</p>
+                <p className="text-gray-700">{config.serviceDirectory.emptyStateMessage}</p>
               </div>
             )}
             
@@ -765,9 +1028,9 @@ export default function ResidentDashboard() {
                       <p className="text-gray-700">{task.description}</p>
                       <div className="flex justify-between items-center mt-2">
                         <span className={`px-2 py-1 text-xs leading-5 font-semibold rounded-full ${
-                          task.status === 'completed' ? 'bg-green-100 text-green-800' : 
-                          task.status === 'in-progress' ? 'bg-blue-100 text-blue-800' : 
-                          'bg-yellow-100 text-yellow-800'
+                          config.statusColors[task.status] ? 
+                            `${config.statusColors[task.status].bg} ${config.statusColors[task.status].text}` : 
+                            'bg-yellow-100 text-yellow-800'
                         }`}>
                           {task.status || "pending"}
                         </span>
@@ -787,6 +1050,14 @@ export default function ResidentDashboard() {
           <UserList token={token} />
         )}
       </main>
+
+      {/* Service Request Modal */}
+      <ServiceRequestModal
+        isOpen={isServiceModalOpen}
+        onClose={() => setIsServiceModalOpen(false)}
+        staffMember={selectedStaffMember}
+        onSubmit={handleServiceRequestSubmit}
+      />
     </div>
   );
 }

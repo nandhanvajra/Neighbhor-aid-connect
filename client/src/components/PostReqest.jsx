@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import config from '../config/config';
 
 export default function PostRequest() {
   const navigate=useNavigate()
@@ -25,14 +26,14 @@ export default function PostRequest() {
         return;
       }
       
-      const config = {
+      const axiosConfig = {
         headers: {
           Authorization: `Bearer ${token}`
         }
       };
       
       // Use the full URL to your backend
-      const response = await axios.post('http://localhost:3000/api/requests', formData, config);
+      const response = await axios.post(`${config.apiBaseUrl}/api/requests`, formData, axiosConfig);
       
       console.log('Response:', response.data);
       setMessage({ text: 'Help request posted successfully!', type: 'success' });
@@ -70,11 +71,11 @@ export default function PostRequest() {
             required
           >
             <option value="">Select</option>
-            <option value="plumbing">Plumbing</option>
-            <option value="electrical">Electrical</option>
-            <option value="maid">Maid</option>
-            <option value="cook">Cook</option>
-            <option value="other">Other</option>
+            {config.serviceCategories.map((category) => (
+              <option key={category.value} value={category.value}>
+                {category.label}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -100,9 +101,11 @@ export default function PostRequest() {
               required
             >
               <option value="">Select urgency</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
+              {config.urgencyLevels.map((urgency) => (
+                <option key={urgency.value} value={urgency.value}>
+                  {urgency.label}
+                </option>
+              ))}
             </select>
           </div>
           <div>

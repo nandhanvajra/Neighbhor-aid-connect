@@ -11,6 +11,10 @@ router.post('/', auth, async (req, res) => {
   try {
     const { category, description, urgency, preferredTime, addressNote } = req.body;
     console.log(category)
+    
+    // Get user details for notifications
+    const user = await User.findById(req.user.userId).select('name');
+    
     // Create new request
     const newRequest = new Request({
       userId: req.user.userId,
@@ -26,6 +30,35 @@ router.post('/', auth, async (req, res) => {
     // Save request to database
     const savedRequest = await newRequest.save();
     console.log('Saved request to database with ID:', savedRequest._id);
+
+    // Notify all users of the new request
+    if (req.io) {
+      req.io.emit('newHelpRequest', {
+        requestId: savedRequest._id,
+        category,
+        description,
+        urgency,
+        preferredTime,
+        addressNote,
+        fromUserId: req.user.userId
+      });
+      
+      // If this is a direct service request to a specific staff member, notify them
+      if (req.body.staffMemberId) {
+        req.io.to(req.body.staffMemberId).emit('directServiceRequest', {
+          requestId: savedRequest._id,
+          category,
+          description,
+          urgency,
+          preferredTime,
+          addressNote,
+          fromUserId: req.user.userId,
+          fromUserName: user.name || 'A resident',
+          staffMemberId: req.body.staffMemberId,
+          staffMemberName: req.body.staffMemberName
+        });
+      }
+    }
     
     res.status(201).json({ 
       success: true, 
@@ -45,8 +78,23 @@ router.post('/', auth, async (req, res) => {
 // GET /api/requests - Get all requests for the logged in user
 router.get('/all', auth, async (req, res) => {
     try {
-        const requests = await Request.find();
-        res.status(200).json({ success: true, requests });
+        const requests = await Request.find()
+            .populate('userId', 'name email job role')
+            .populate('completedBy', 'name email job role');
+        
+        // Transform the data to include userName and ensure userId is a string
+        const requestsWithUserNames = requests.map(request => ({
+            ...request.toObject(),
+            userId: request.userId ? request.userId._id.toString() : request.userId,
+            userName: request.userId ? request.userId.name : 'Unknown User',
+            userEmail: request.userId ? request.userId.email : '',
+            userJob: request.userId ? request.userId.job : '',
+            userRole: request.userId ? request.userId.role : '',
+            completedBy: request.completedBy ? request.completedBy._id.toString() : request.completedBy,
+            completedByName: request.completedBy ? request.completedBy.name : 'Volunteer'
+        }));
+        
+        res.status(200).json({ success: true, requests: requestsWithUserNames });
     } catch (err) {
         console.error('Get requests error:', err);
         res.status(500).json({ success: false, message: 'Server error', error: err.message });

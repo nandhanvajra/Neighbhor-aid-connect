@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const config = require('../config/config');
 
 const requestSchema = new mongoose.Schema({
   userId: {
@@ -8,7 +9,7 @@ const requestSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['plumbing', 'electrical', 'maid', 'cook', 'other'],
+    enum: config.serviceCategories,
     required: true
   },
   description: {
@@ -18,7 +19,7 @@ const requestSchema = new mongoose.Schema({
   },
   urgency: {
     type: String,
-    enum: ['low', 'medium', 'high'],
+    enum: config.urgencyLevels,
     required: true
   },
   preferredTime: {
@@ -31,7 +32,7 @@ const requestSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'accepted', 'completed', 'cancelled'],
+    enum: config.requestStatuses,
     default: 'pending'
   },
   createdAt: {

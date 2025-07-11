@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import io from 'socket.io-client';
+import config from '../config/config';
 
 // Create socket outside component to prevent multiple connections
-const socket = io('http://localhost:3000');
+const socket = io(config.apiBaseUrl);
 
 export default function ChatApplication() {
   // Use chatid (lowercase) to match the route in App.js
@@ -71,13 +72,13 @@ export default function ChatApplication() {
     setLoading(true);
 
     // Try the messages route first
-    fetch(`http://localhost:3000/api/messages/${chatid}`)
+    fetch(`${config.apiBaseUrl}/api/messages/${chatid}`)
       .then(res => {
         console.log("Messages fetch response status:", res.status);
         if (!res.ok) {
           // If first route fails, try the alternative route
           console.log("First route failed, trying alternative...");
-          return fetch(`http://localhost:3000/api/chat/${chatid}/messages`);
+          return fetch(`${config.apiBaseUrl}/api/chat/${chatid}/messages`);
         }
         return res;
       })
@@ -212,7 +213,7 @@ export default function ChatApplication() {
     setNewMsg('');
     
     try {
-      const response = await fetch(`http://localhost:3000/api/chat/${chatid}/messages`, {
+      const response = await fetch(`${config.apiBaseUrl}/api/chat/${chatid}/messages`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json'

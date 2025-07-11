@@ -1,6 +1,17 @@
 import React, { useState } from 'react';
-import { ChevronLeft, User, Mail, Lock, Eye, EyeOff, AlertCircle, MapPin } from 'lucide-react';
+import { 
+  ChevronLeft, 
+  User, 
+  Mail, 
+  Lock, 
+  Eye, 
+  EyeOff, 
+  AlertCircle, 
+  MapPin, 
+  Briefcase
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import config from '../config/config';
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -10,6 +21,7 @@ export default function Signup() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [address, setAddress] = useState('');
+  const [job, setJob] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -24,16 +36,21 @@ export default function Signup() {
       return;
     }
 
+    if (!job) {
+      setError('Please select a job');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      const response = await fetch('http://localhost:3000/api/signup', {
+      const response = await fetch(`${config.apiBaseUrl}/api/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, email, password, address }),
+        body: JSON.stringify({ name, email, password, address, job }),
       });
 
       const data = await response.json();
@@ -47,7 +64,9 @@ export default function Signup() {
       console.log('Signup successful', data);
 
       // Redirect to login after successful signup
-      navigate('/login');
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000);
     } catch (err) {
       setError(err.message || 'An error occurred during signup');
     } finally {
@@ -59,7 +78,7 @@ export default function Signup() {
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-orange-500 mb-2">Neighbor Aid Connect</h1>
+          <h1 className="text-2xl font-bold text-orange-500 mb-2">{config.appName}</h1>
           <p className="text-gray-600">Create an account to join your local community</p>
         </div>
 
@@ -118,7 +137,6 @@ export default function Signup() {
               </div>
             </div>
 
-            {/* Address field (replacing role) */}
             <div className="mb-6">
               <label htmlFor="address" className="block text-gray-700 text-sm font-medium mb-2">
                 Address
@@ -136,6 +154,31 @@ export default function Signup() {
                   onChange={(e) => setAddress(e.target.value)}
                   required
                 />
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label htmlFor="job" className="block text-gray-700 text-sm font-medium mb-2">
+                Job/Profession
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Briefcase size={18} className="text-gray-400" />
+                </div>
+                <select
+                  id="job"
+                  className="pl-10 w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  value={job}
+                  onChange={(e) => setJob(e.target.value)}
+                  required
+                >
+                  <option value="">Select your job/profession</option>
+                  {config.jobs.map(jobOption => (
+                    <option key={jobOption.value} value={jobOption.value}>
+                      {jobOption.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Typography,
   Box,
+  Typography,
+  Button,
   CircularProgress,
   Alert,
-  Button,
-  TextField,
   MenuItem,
+  TextField,
   Select,
   InputLabel,
   FormControl,
@@ -22,21 +22,8 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import '@fontsource/roboto';
-
-const availableRoles = [
-  'resident',
-  'volunteer',
-  'staff',
-  'manager',
-  'technician',
-  'cook',
-  'maid',
-  'security',
-  'gardener',
-  'plumber',
-  'electrician',
-  'custom',
-];
+import ClickableUserName from './ClickableUserName';
+import config from '../config/config';
 
 const UserList = ({ token }) => {
   const [users, setUsers] = useState([]);
@@ -57,7 +44,7 @@ const UserList = ({ token }) => {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:3000/api/requests/allusers', {
+      const response = await fetch(`${config.apiBaseUrl}/api/requests/allusers`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -99,7 +86,7 @@ const UserList = ({ token }) => {
     const role = selectedRoles[userId] === 'custom' ? customRoles[userId] : selectedRoles[userId];
 
     try {
-      const response = await fetch(`http://localhost:3000/api/users/${userId}`, {
+      const response = await fetch(`${config.apiBaseUrl}/api/users/${userId}`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -150,7 +137,9 @@ const UserList = ({ token }) => {
             <TableBody>
               {users.map((user) => (
                 <TableRow key={user._id}>
-                  <TableCell>{user.name}</TableCell>
+                  <TableCell>
+                    <ClickableUserName userId={user._id} userName={user.name} />
+                  </TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>{user.role || <em>No role</em>}</TableCell>
                   <TableCell>
@@ -163,7 +152,7 @@ const UserList = ({ token }) => {
                           label="Role"
                         >
                           <MenuItem value="">Select role</MenuItem>
-                          {availableRoles.map((role) => (
+                          {config.availableRoles.map((role) => (
                             <MenuItem key={role} value={role}>
                               {role.charAt(0).toUpperCase() + role.slice(1)}
                             </MenuItem>

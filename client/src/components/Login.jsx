@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';  // Import useNavigate
+import { useNavigate } from 'react-router-dom';
+import config from '../config/config';
 
 export default function Login() {
   const navigate = useNavigate();  // Initialize navigate function
@@ -18,7 +19,7 @@ export default function Login() {
 
     try {
       // Send login request to your server
-      const response = await fetch('http://localhost:3000/api/login', {
+      const response = await fetch(`${config.apiBaseUrl}/api/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -58,7 +59,7 @@ export default function Login() {
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-orange-500 mb-2">Neighbor Aid Connect</h1>
+          <h1 className="text-2xl font-bold text-orange-500 mb-2">{config.appName}</h1>
           <p className="text-gray-600">Welcome back! Please log in to your account.</p>
         </div>
         

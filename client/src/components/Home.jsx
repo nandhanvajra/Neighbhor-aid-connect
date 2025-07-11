@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Menu, ChevronRight, Users, Heart, MessageCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import config from '../config/config';
 
 export default function Home() {
   const [activeButton, setActiveButton] = useState(null);
@@ -12,21 +13,20 @@ export default function Home() {
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between h-16 items-center">
-            <h1 className="text-2xl font-bold text-orange-500">Neighbor Aid Connect</h1>
+            <h1 className="text-2xl font-bold text-orange-500">{config.appName}</h1>
 
             <div className="hidden md:flex items-center space-x-4">
-              <Link
-                to="/"
-                className={`px-3 py-2 transition-colors duration-200 ${activeButton === 'home' ? 'text-orange-500' : 'text-gray-700 hover:text-orange-500'}`}
-                onMouseEnter={() => setActiveButton('home')}
-                onMouseLeave={() => setActiveButton(null)}
-              >
-                Home
-              </Link>
-              <button className="px-3 py-2 text-gray-700 hover:text-orange-500 transition-colors duration-200">About</button>
-              <button className="px-3 py-2 text-gray-700 hover:text-orange-500 transition-colors duration-200">Services</button>
-              <button className="px-3 py-2 text-gray-700 hover:text-orange-500 transition-colors duration-200">Community</button>
-              <button className="px-3 py-2 text-gray-700 hover:text-orange-500 transition-colors duration-200">Contact</button>
+              {config.navigationItems.map((item) => (
+                <Link
+                  key={item.id}
+                  to={item.path}
+                  className={`px-3 py-2 transition-colors duration-200 ${activeButton === item.id ? 'text-orange-500' : 'text-gray-700 hover:text-orange-500'}`}
+                  onMouseEnter={() => setActiveButton(item.id)}
+                  onMouseLeave={() => setActiveButton(null)}
+                >
+                  {item.label}
+                </Link>
+              ))}
 
               <Link
                 to="/login"
@@ -102,11 +102,15 @@ export default function Home() {
           <h2 className="text-3xl font-bold text-center mb-12 text-gray-800">How We Connect Communities</h2>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {[
-              { key: 'helpers', icon: Users, title: 'Find Nearby Helpers', desc: 'Connect with neighbors who can provide assistance with everyday tasks' },
-              { key: 'volunteer', icon: Heart, title: 'Volunteer Opportunities', desc: 'Discover ways to give back and support others in your community' },
-              { key: 'forums', icon: MessageCircle, title: 'Community Forums', desc: 'Join discussions and stay informed about local news and events' },
-            ].map(({ key, icon: Icon, title, desc }) => (
+            {config.featureCards.map(({ key, icon: IconName, title, desc }) => {
+              // Dynamically import icons
+              const Icon = {
+                'Users': Users,
+                'Heart': Heart,
+                'MessageCircle': MessageCircle
+              }[IconName] || Users;
+              
+              return (
               <div
                 key={key}
                 className={`bg-white p-6 rounded-lg text-center transition-all duration-300 ${
@@ -126,7 +130,8 @@ export default function Home() {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
