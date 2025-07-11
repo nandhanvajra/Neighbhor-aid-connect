@@ -228,4 +228,51 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
+// PATCH /api/requests/:id/rate - Rate the helper for a completed request
+router.patch('/:id/rate', auth, async (req, res) => {
+  try {
+    const { rating } = req.body;
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
+    }
+    const request = await Request.findById(req.params.id);
+    if (!request) {
+      return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+    // Only the user who posted the request can rate, and only if completed
+    if (request.userId.toString() !== req.user.userId) {
+      return res.status(403).json({ success: false, message: 'Not authorized to rate this request' });
+    }
+    if (request.status !== 'completed') {
+      return res.status(400).json({ success: false, message: 'Can only rate completed requests' });
+    }
+    if (request.rating) {
+      return res.status(400).json({ success: false, message: 'Request already rated' });
+    }
+    request.rating = rating;
+    request.ratedBy = req.user.userId;
+    await request.save();
+
+    // Update helper's average rating and totalRatings
+    if (request.completedBy) {
+      const helper = await User.findById(request.completedBy);
+      if (helper) {
+        // Calculate new average
+        const prevTotal = helper.totalRatings || 0;
+        const prevAvg = helper.rating || 0;
+        const newTotal = prevTotal + 1;
+        const newAvg = ((prevAvg * prevTotal) + rating) / newTotal;
+        helper.rating = newAvg;
+        helper.totalRatings = newTotal;
+        await helper.save();
+      }
+    }
+
+    res.status(200).json({ success: true, message: 'Rating submitted', request });
+  } catch (err) {
+    console.error('Rate request error:', err);
+    res.status(500).json({ success: false, message: 'Server error', error: err.message });
+  }
+});
+
 module.exports = router;

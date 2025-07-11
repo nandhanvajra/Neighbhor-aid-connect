@@ -25,6 +25,124 @@ import ServiceRequestModal from './ServiceRequestModal';
 import ClickableUserName from './ClickableUserName';
 import config from '../config/config';
 import io from 'socket.io-client';
+import UserProfile from './UserProfile';
+
+// RatingModal component for immediate rating after completion
+function RatingModal({ open, onClose, onSubmit }) {
+  const [hovered, setHovered] = useState(0);
+  const [selected, setSelected] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleRate = async (rating) => {
+    setSubmitting(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('token');
+      const url = `${config.apiBaseUrl}/api/requests/${requestId}/rate`;
+      const options = {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ rating })
+      };
+      console.log('Rating fetch:', { url, options });
+      const res = await fetch(url, options);
+      let data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+      console.log('Rating response:', { status: res.status, data });
+      if (!res.ok) throw new Error((data && data.message) || 'Failed to submit rating');
+      setSelected(rating);
+      if (onRated) onRated();
+    } catch (err) {
+      setError(err.message);
+      console.error('Rating error:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+      <div className="bg-white rounded-lg shadow-lg p-6 w-80 text-center">
+        <h3 className="text-lg font-bold mb-2 text-gray-800">Rate the Helper</h3>
+        <div className="flex items-center justify-center mb-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              className={`w-8 h-8 focus:outline-none ${i < (hovered || selected) ? 'text-yellow-500' : 'text-gray-300'}`}
+              onMouseEnter={() => setHovered(i + 1)}
+              onMouseLeave={() => setHovered(0)}
+              onClick={() => handleRate(i + 1)}
+              disabled={submitting}
+            >
+              <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><polygon points="9.9,1.1 7.6,6.6 1.6,7.3 6.1,11.2 4.8,17.1 9.9,14.1 15,17.1 13.7,11.2 18.2,7.3 12.2,6.6 "/></svg>
+            </button>
+          ))}
+        </div>
+        {submitting && <div className="text-xs text-gray-400 mb-2">Submitting...</div>}
+        {error && <div className="text-xs text-red-500 mb-2">{error}</div>}
+        <button className="mt-2 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 text-gray-700" onClick={onClose} disabled={submitting}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// Improved RatingStars component for completed tasks section
+function RatingStars({ requestId, onRated }) {
+  const [hovered, setHovered] = useState(0);
+  const [selected, setSelected] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleRate = async (rating) => {
+    setSubmitting(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${config.apiBaseUrl}/api/requests/${requestId}/rate`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ rating })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to submit rating');
+      setSelected(rating);
+      if (onRated) onRated();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <button
+          key={i}
+          type="button"
+          className={`w-6 h-6 focus:outline-none ${i < (hovered || selected) ? 'text-yellow-500' : 'text-gray-300'}`}
+          onMouseEnter={() => setHovered(i + 1)}
+          onMouseLeave={() => setHovered(0)}
+          onClick={() => handleRate(i + 1)}
+          disabled={submitting}
+        >
+          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><polygon points="9.9,1.1 7.6,6.6 1.6,7.3 6.1,11.2 4.8,17.1 9.9,14.1 15,17.1 13.7,11.2 18.2,7.3 12.2,6.6 "/></svg>
+        </button>
+      ))}
+      {submitting && <span className="ml-2 text-xs text-gray-400">Submitting...</span>}
+      {error && <span className="ml-2 text-xs text-red-500">{error}</span>}
+    </div>
+  );
+}
 
 export default function ResidentDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -46,6 +164,8 @@ export default function ResidentDashboard() {
   ]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const navigate = useNavigate();
+  // Add state for rating modal
+  const [ratingModal, setRatingModal] = useState({ open: false, requestId: null });
 
   useEffect(() => {
     try {
@@ -458,6 +578,11 @@ export default function ResidentDashboard() {
         );
         
         alert('Request has been marked as completed!');
+        // If the current user is the poster, show the rating modal
+        const updatedRequest = data.request;
+        if (updatedRequest && updatedRequest.userId === user._id && updatedRequest.completedBy) {
+          setRatingModal({ open: true, requestId });
+        }
       })
       .catch(err => {
         console.error('Error updating request:', err);
@@ -571,6 +696,24 @@ export default function ResidentDashboard() {
 
   const navLinks = getNavLinks();
 
+  // Function to refresh requests (used after rating)
+  const refreshRequests = () => {
+    if (token) {
+      fetch(`${config.apiBaseUrl}/api/requests/all`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.requests && Array.isArray(data.requests)) {
+            setAllRequests(data.requests);
+          }
+        });
+    }
+  };
+
   return (
     <div className="flex min-h-screen font-sans bg-gray-100">
       {/* Sidebar */}
@@ -607,20 +750,6 @@ export default function ResidentDashboard() {
             <h1 className="text-3xl font-bold text-orange-500 mb-2">{config.overview.welcomeMessage.replace('{name}', user.name)}</h1>
             {/* <p className="text-gray-700 mb-6">You have 2 active requests • 1 maid assigned • 3 new messages</p> */}
 
-            {/* Test Profile Navigation */}
-            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
-              <p className="text-sm text-blue-700 mb-2">Debug: Test profile navigation</p>
-              <button
-                onClick={() => {
-                  console.log('Testing profile navigation for user:', user._id);
-                  window.location.href = `/profile/${user._id}`;
-                }}
-                className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-              >
-                Test My Profile
-              </button>
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               {config.quickActions.map(({ label, icon: IconName, link, description }) => {
                 const iconMap = {
@@ -644,40 +773,26 @@ export default function ResidentDashboard() {
               })}
             </div>
 
-            {/* Community Help Requests Section */}
-            <div className="mt-8">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 space-y-2 md:space-y-0">
-                <h2 className="text-2xl font-bold text-gray-800">{config.overview.communityRequestsTitle}</h2>
-                
-                {/* Search Bar */}
-                <div className="relative w-full md:w-auto">
-                  <input
-                    type="text"
-                    placeholder={config.overview.searchPlaceholder}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full md:w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                  <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-                </div>
-              </div>
-              
-              {filteredRequests.length > 0 ? (
-                <div className="bg-white rounded-lg shadow overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.number}</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.category}</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.description}</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.urgency}</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.time}</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.status}</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.action}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredRequests.map((request, index) => (
+            {/* Community Help Requests (exclude completed and in-progress) */}
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">{config.overview.communityRequestsTitle}</h2>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.number}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.category}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.description}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.urgency}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.time}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.status}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.action}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredRequests
+                      .filter(request => request.status !== 'completed' && request.status !== 'in-progress')
+                      .map((request, index) => (
                         <tr key={request._id || index} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -710,11 +825,7 @@ export default function ResidentDashboard() {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              config.statusColors[request.status] ? 
-                                `${config.statusColors[request.status].bg} ${config.statusColors[request.status].text}` : 
-                                'bg-yellow-100 text-yellow-800'
-                            }`}>
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${config.statusColors[request.status] ? `${config.statusColors[request.status].bg} ${config.statusColors[request.status].text}` : 'bg-yellow-100 text-yellow-800'}`}>
                               {request.status || "pending"}
                             </span>
                           </td>
@@ -732,120 +843,293 @@ export default function ResidentDashboard() {
                           </td>
                         </tr>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="bg-white p-6 rounded-lg shadow text-center">
-                  <AlertTriangle size={32} className="text-orange-500 mx-auto mb-2" />
-                  <p className="text-gray-700">
-                    {searchTerm ? config.overview.noSearchResultsMessage : config.overview.noRequestsMessage}
-                  </p>
-                </div>
-              )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* In Progress Tasks Section */}
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">In Progress Tasks</h2>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.number}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.category}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.description}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.urgency}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.time}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.status}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.action}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredRequests
+                      .filter(request => request.status === 'in-progress')
+                      .map((request, index) => (
+                        <tr key={request._id || index} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm font-medium text-gray-900">{request.category}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-900 max-w-xs truncate">{request.description}</div>
+                            {request.addressNote && (
+                              <div className="text-xs text-gray-500 italic mt-1">Note: {request.addressNote}</div>
+                            )}
+                            {request.userName && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                Posted by: <ClickableUserName userId={request.userId} userName={request.userName} />
+                                <span className="text-xs text-gray-400 ml-2">
+                                  (ID: {request.userId})
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full text-white ${getUrgencyColor(request.urgency)}`}>
+                              {request.urgency || "N/A"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <div className="flex items-center">
+                              <Clock size={16} className="mr-1" />
+                              {request.preferredTime || 'Any time'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${config.statusColors[request.status] ? `${config.statusColors[request.status].bg} ${config.statusColors[request.status].text}` : 'bg-yellow-100 text-yellow-800'}`}>
+                              {request.status || "pending"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            {/* Actions for in-progress tasks can go here if needed */}
+                            <span className="text-blue-500">In Progress</span>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Completed Tasks Section */}
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">All Completed Tasks</h2>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.number}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.category}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.description}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.urgency}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.time}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.status}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.action}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredRequests
+                      .filter(request => request.status === 'completed')
+                      .map((request, index) => (
+                        <tr key={request._id || index} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm font-medium text-gray-900">{request.category}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-900 max-w-xs truncate">{request.description}</div>
+                            {request.addressNote && (
+                              <div className="text-xs text-gray-500 italic mt-1">Note: {request.addressNote}</div>
+                            )}
+                            {request.userName && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                Posted by: <ClickableUserName userId={request.userId} userName={request.userName} />
+                                {/* Debug info */}
+                                <span className="text-xs text-gray-400 ml-2">
+                                  (ID: {request.userId})
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full text-white ${getUrgencyColor(request.urgency)}`}>
+                              {request.urgency || "N/A"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <div className="flex items-center">
+                              <Clock size={16} className="mr-1" />
+                              {request.preferredTime || 'Any time'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${config.statusColors[request.status] ? `${config.statusColors[request.status].bg} ${config.statusColors[request.status].text}` : 'bg-yellow-100 text-yellow-800'}`}>
+                              {request.status || "pending"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            {/* No actions for completed tasks */}
+                            <span className="text-gray-400">Completed</span>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
 
         {activeTab === 'requests' && user && (
-          <section>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">{config.requests.title}</h2>
-            
-            {/* Loading state */}
-            {!allRequests ? (
-              <div className="flex justify-center items-center h-48">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+          <>
+            {/* Unrated Completed Tasks Section */}
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-yellow-700 mb-4">Unrated Completed Tasks</h2>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.number}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.category}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.description}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.urgency}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{config.overview.tableHeaders.time}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate Helper</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {allRequests
+                      .filter(service => service.status === 'completed' && service.userId === user._id && service.completedBy && (service.rating == null))
+                      .map((service, index) => (
+                        <tr key={service._id || index} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm font-medium text-gray-900">{service.category}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-900 max-w-xs truncate">{service.description}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full text-white ${getUrgencyColor(service.urgency)}`}>{service.urgency || "N/A"}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <div className="flex items-center">
+                              <Clock size={16} className="mr-1" />
+                              {service.preferredTime || 'Any time'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <RatingStars requestId={service._id} onRated={refreshRequests} />
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
               </div>
-            ) : allRequests.filter(req => req.userId === user._id).length === 0 ? (
-              <div className="bg-white p-6 rounded-lg shadow text-center">
-                <AlertTriangle size={32} className="text-orange-500 mx-auto mb-2" />
-                <p className="text-gray-700 mb-4">{config.requests.noRequestsMessage}</p>
-                <Link 
-                  to="/post-request" 
-                  className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
-                >
-                  <PlusCircle size={18} className="mr-2" />
-                  {config.requests.createNewRequestText}
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {allRequests
-                  .filter(req => req.userId === user._id)
-                  .map((request) => (
-                    <div key={request._id} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-all">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            {getCategoryIcon(request.category)}
-                            <h3 className="text-xl font-semibold text-orange-500">{request.category}</h3>
-                            <span className={`px-2 py-1 text-xs leading-5 font-semibold rounded-full text-white ${getUrgencyColor(request.urgency)}`}>
-                              {request.urgency || "Normal"}
-                            </span>
+            </div>
+            {/* Community Help Requests (exclude completed and in-progress) */}
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">{config.requests.title}</h2>
+              
+              {/* Loading state */}
+              {!allRequests ? (
+                <div className="flex justify-center items-center h-48">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+                </div>
+              ) : allRequests.filter(req => req.userId === user._id).length === 0 ? (
+                <div className="bg-white p-6 rounded-lg shadow text-center">
+                  <AlertTriangle size={32} className="text-orange-500 mx-auto mb-2" />
+                  <p className="text-gray-700 mb-4">{config.requests.noRequestsMessage}</p>
+                  <Link 
+                    to="/post-request" 
+                    className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
+                  >
+                    <PlusCircle size={18} className="mr-2" />
+                    {config.requests.createNewRequestText}
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {allRequests
+                    .filter(req => req.userId === user._id)
+                    .map((request) => (
+                      <div key={request._id} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-all">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              {getCategoryIcon(request.category)}
+                              <h3 className="text-xl font-semibold text-orange-500">{request.category}</h3>
+                              <span className={`px-2 py-1 text-xs leading-5 font-semibold rounded-full text-white ${getUrgencyColor(request.urgency)}`}>
+                                {request.urgency || "Normal"}
+                              </span>
+                            </div>
+                            <p className="text-gray-800 mb-3">{request.description}</p>
+                            <p className="text-sm text-gray-500 mb-2">
+                              {config.requests.postedText} {new Date(request.createdAt).toLocaleDateString()} • 
+                              {request.preferredTime && ` ${config.requests.preferredTimeText} ${request.preferredTime} • `}
+                              {request.status === 'in-progress' && request.completedBy ? 
+                                <span className="font-medium text-blue-600"> {config.requests.acceptedByText} <ClickableUserName userId={request.completedBy} userName={request.completedByName || 'Volunteer'} /></span> :
+                                request.status === 'completed' ?
+                                <span className="font-medium text-green-600"> {config.requests.completedText}</span> :
+                                <span className="font-medium text-yellow-600"> {config.requests.pendingText}</span>
+                              }
+                            </p>
+                            
+                            {request.addressNote && (
+                              <p className="text-sm italic text-gray-500 mb-3">{config.requests.noteText} {request.addressNote}</p>
+                            )}
                           </div>
-                          <p className="text-gray-800 mb-3">{request.description}</p>
-                          <p className="text-sm text-gray-500 mb-2">
-                            {config.requests.postedText} {new Date(request.createdAt).toLocaleDateString()} • 
-                            {request.preferredTime && ` ${config.requests.preferredTimeText} ${request.preferredTime} • `}
-                            {request.status === 'in-progress' && request.completedBy ? 
-                              <span className="font-medium text-blue-600"> {config.requests.acceptedByText} <ClickableUserName userId={request.completedBy} userName={request.completedByName || 'Volunteer'} /></span> :
-                              request.status === 'completed' ?
-                              <span className="font-medium text-green-600"> {config.requests.completedText}</span> :
-                              <span className="font-medium text-yellow-600"> {config.requests.pendingText}</span>
-                            }
-                          </p>
                           
-                          {request.addressNote && (
-                            <p className="text-sm italic text-gray-500 mb-3">{config.requests.noteText} {request.addressNote}</p>
-                          )}
+                          <span className={`px-3 py-1 text-sm font-semibold rounded-full ${
+                            config.statusColors[request.status] ? 
+                              `${config.statusColors[request.status].bg} ${config.statusColors[request.status].text}` : 
+                              'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {config.requests.statusLabels[request.status] || 'Pending'}
+                          </span>
                         </div>
                         
-                        <span className={`px-3 py-1 text-sm font-semibold rounded-full ${
-                          config.statusColors[request.status] ? 
-                            `${config.statusColors[request.status].bg} ${config.statusColors[request.status].text}` : 
-                            'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {config.requests.statusLabels[request.status] || 'Pending'}
-                        </span>
-                      </div>
-                      
-                      <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap gap-2">
-                        {/* Show chat button only if there's someone who accepted the task */}
-                        {request.status === 'in-progress' && request.completedBy && (
-                          <Link 
-                            to={`/chat/${request.completedBy}`} 
-                            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center"
-                          >
-                            <MessageCircle size={16} className="mr-2" />
-                            {config.requests.chatWithHelperText}
-                          </Link>
-                        )}
-                        
-                        {/* Show mark completed button only if in progress */}
-                        {request.status === 'in-progress' && (
+                        <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap gap-2">
+                          {/* Show chat button only if there's someone who accepted the task */}
+                          {request.status === 'in-progress' && request.completedBy && (
+                            <Link 
+                              to={`/chat/${request.completedBy}`} 
+                              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center"
+                            >
+                              <MessageCircle size={16} className="mr-2" />
+                              {config.requests.chatWithHelperText}
+                            </Link>
+                          )}
+                          
+                          {/* Show mark completed button only if in progress */}
+                          {request.status === 'in-progress' && (
+                            <button 
+                              onClick={() => handleMarkCompleted(request._id)}
+                              className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors flex items-center"
+                            >
+                              <CheckCircle size={16} className="mr-2" />
+                              {config.requests.markCompletedText}
+                            </button>
+                          )}
+                          
+                          {/* Delete button always shown */}
                           <button 
-                            onClick={() => handleMarkCompleted(request._id)}
-                            className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors flex items-center"
+                            onClick={() => handleDeleteRequest(request._id)}
+                            className="px-4 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors flex items-center"
                           >
-                            <CheckCircle size={16} className="mr-2" />
-                            {config.requests.markCompletedText}
+                            <AlertTriangle size={16} className="mr-2" />
+                            {config.requests.deleteRequestText}
                           </button>
-                        )}
-                        
-                        {/* Delete button always shown */}
-                        <button 
-                          onClick={() => handleDeleteRequest(request._id)}
-                          className="px-4 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors flex items-center"
-                        >
-                          <AlertTriangle size={16} className="mr-2" />
-                          {config.requests.deleteRequestText}
-                        </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-              </div>
-            )}
-          </section>
+                    ))}
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {activeTab === 'staff' && user && (
@@ -885,16 +1169,54 @@ export default function ResidentDashboard() {
 
         {activeTab === 'chats' && user && (
           <section>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Volunteers to Chat With</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Helpers You've Chatted With</h2>
             <ul className="space-y-2">
-              {volunteers.map(vol => (
-                <li key={vol._id} className="bg-white p-3 rounded shadow hover:shadow-md flex items-center justify-between">
-                  <span className="text-gray-700 font-medium">
-                    <ClickableUserName userId={vol._id} userName={vol.name} />
-                  </span>
-                  <Link to={`/chat/${vol._id}`} className="text-orange-500 hover:underline">Message</Link>
-                </li>
-              ))}
+              {(() => {
+                // 1. Get all requests for the current user (as requester)
+                const myRequests = allRequests.filter(req => req.userId === user._id);
+                // 2. Get unique user IDs who accepted the current user's requests
+                const acceptedUserIds = [
+                  ...new Set(
+                    myRequests
+                      .filter(req => req.completedBy && (req.status === 'in-progress' || req.status === 'completed'))
+                      .map(req => req.completedBy)
+                  )
+                ];
+                // 3. Get all requests where the current user is the helper (as completedBy)
+                const helpingRequests = allRequests.filter(req => req.completedBy === user._id);
+                // 4. Get unique user IDs who you are helping
+                const helpingUserIds = [
+                  ...new Set(
+                    helpingRequests
+                      .filter(req => req.userId && (req.status === 'in-progress' || req.status === 'completed'))
+                      .map(req => req.userId)
+                  )
+                ];
+                // 5. Merge both lists and remove duplicates
+                const allChatUserIds = [...new Set([...acceptedUserIds, ...helpingUserIds])];
+                // 6. Render chat list
+                return allChatUserIds.length === 0 ? (
+                  <li className="text-gray-500">No helpers or users to chat with yet.</li>
+                ) : (
+                  allChatUserIds.map(chatUserId => {
+                    // Find a request with this user to get their name
+                    let userName = chatUserId;
+                    // If this is a helper, get completedByName; if this is a requester, get userName
+                    const reqWithHelper = allRequests.find(r => r.completedBy === chatUserId && r.completedByName);
+                    const reqWithRequester = allRequests.find(r => r.userId === chatUserId && r.userName);
+                    if (reqWithHelper) userName = reqWithHelper.completedByName;
+                    else if (reqWithRequester) userName = reqWithRequester.userName;
+                    return (
+                      <li key={chatUserId} className="bg-white p-3 rounded shadow hover:shadow-md flex items-center justify-between">
+                        <span className="text-gray-700 font-medium">
+                          <ClickableUserName userId={chatUserId} userName={userName} />
+                        </span>
+                        <Link to={`/chat/${chatUserId}`} className="text-orange-500 hover:underline">Message</Link>
+                      </li>
+                    );
+                  })
+                );
+              })()}
             </ul>
           </section>
         )}
@@ -930,7 +1252,6 @@ export default function ResidentDashboard() {
         {activeTab === 'directory' && user && (
           <section>
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Service Directory</h2>
-            
             {directoryLoading ? (
               <div className="flex justify-center items-center h-48">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
@@ -938,111 +1259,69 @@ export default function ResidentDashboard() {
               </div>
             ) : completedTasks.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {completedTasks.map((service, index) => (
-                  <div key={service._id || index} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
-                    <div className="p-5">
-                      <div className="flex items-center mb-3">
-                        {getCategoryIcon(service.category)}
-                        <h3 className="text-xl font-bold text-gray-800 ml-2">{service.name}</h3>
-                      </div>
-                      
-                      <div className="mb-3">
-                        <p className="text-gray-600">{service.description}</p>
-                      </div>
-                      
-                      <div className="space-y-2 text-sm text-gray-500">
-                        {service.category && (
-                          <div className="flex items-center">
-                            <span className="font-medium mr-2">{config.serviceDirectory.categoryText}</span>
-                            <span className={`px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800`}>
-                              {service.category}
-                            </span>
+                {completedTasks
+                  .filter(service => service.completedBy === user._id)
+                  .map((service, index) => (
+                    <div key={service._id || index} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
+                      <div className="p-5">
+                        <div className="flex items-center mb-3">
+                          {getCategoryIcon(service.category)}
+                          <h3 className="text-xl font-bold text-gray-800 ml-2">{service.category}</h3>
+                        </div>
+                        <div className="mb-3">
+                          <p className="text-gray-600">{service.description}</p>
+                        </div>
+                        {/* Add posted by info */}
+                        {service.userId && service.userName && (
+                          <div className="mb-2 text-sm text-gray-500">
+                            <span className="font-medium">Posted by: </span>
+                            <ClickableUserName userId={service.userId} userName={service.userName} />
                           </div>
                         )}
-                        
-                        {service.availableHours && (
-                          <div className="flex items-center">
-                            <Clock size={16} className="mr-2" />
-                            <span>{config.serviceDirectory.availableHoursText} {service.availableHours}</span>
+                        <div className="space-y-2 text-sm text-gray-500">
+                          {service.preferredTime && (
+                            <div><span className="font-medium">Preferred Time:</span> {service.preferredTime}</div>
+                          )}
+                          {service.addressNote && (
+                            <div><span className="font-medium">Note:</span> {service.addressNote}</div>
+                          )}
+                          <div><span className="font-medium">Status:</span> {service.status}</div>
+                        </div>
+                        {/* Rating UI for task poster */}
+                        {service.status === 'completed' && service.userId === user._id && service.completedBy && (
+                          <div className="mt-2">
+                            {service.rating ? (
+                              <div className="flex items-center text-yellow-500">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <svg key={i} className={`w-5 h-5 ${i < service.rating ? 'fill-current' : 'text-gray-300'}`} viewBox="0 0 20 20"><polygon points="9.9,1.1 7.6,6.6 1.6,7.3 6.1,11.2 4.8,17.1 9.9,14.1 15,17.1 13.7,11.2 18.2,7.3 12.2,6.6 "/></svg>
+                                ))}
+                                <span className="ml-2 text-sm text-gray-700">You rated this helper</span>
+                              </div>
+                            ) : (
+                              <RatingStars requestId={service._id} onRated={refreshRequests} />
+                            )}
                           </div>
-                        )}
-                        
-                        {service.phone && (
-                          <div className="flex items-center">
-                            <Phone size={16} className="mr-2" />
-                            <span>{config.serviceDirectory.phoneText} {service.phone}</span>
-                          </div>
-                        )}
-                        
-                        {service.email && (
-                          <div className="flex items-center">
-                            <Mail size={16} className="mr-2" />
-                            <span>{config.serviceDirectory.emailText} {service.email}</span>
-                          </div>
-                        )}
-                        
-                        {service.rating && (
-                          <div className="flex items-center">
-                            <Star size={16} className="text-yellow-500 mr-2" />
-                            <span>{config.serviceDirectory.ratingLabel} {service.rating} ({service.totalRatings || 0} {config.serviceDirectory.ratingText})</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between">
-                        <button 
-                          className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
-                        >
-                          {config.serviceDirectory.requestServiceText}
-                        </button>
-                        
-                        {service.phone && (
-                          <a 
-                            href={`tel:${service.phone}`}
-                            className="px-4 py-2 border border-orange-500 text-orange-500 rounded-md hover:bg-orange-50 transition-colors flex items-center"
-                          >
-                            <Phone size={16} className="mr-1" />
-                            {config.serviceDirectory.callText}
-                          </a>
                         )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             ) : (
               <div className="bg-white p-6 rounded-lg shadow text-center">
                 <AlertTriangle size={32} className="text-orange-500 mx-auto mb-2" />
-                <p className="text-gray-700">{config.serviceDirectory.emptyStateMessage}</p>
+                <p className="text-gray-700">No service directory information available.</p>
               </div>
             )}
-            
-            {/* Previously this was showing completed tasks, now showing as a separate section */}
-            {directoryData.length > 0 && (
-              <div className="mt-8">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Tasks You've Helped With</h3>
-                <div className="space-y-4">
-                  {directoryData.map((task) => (
-                    <div key={task._id} className="bg-white p-4 rounded shadow">
-                      <p className="text-lg font-semibold text-orange-500">{task.category}</p>
-                      <p className="text-gray-700">{task.description}</p>
-                      <div className="flex justify-between items-center mt-2">
-                        <span className={`px-2 py-1 text-xs leading-5 font-semibold rounded-full ${
-                          config.statusColors[task.status] ? 
-                            `${config.statusColors[task.status].bg} ${config.statusColors[task.status].text}` : 
-                            'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {task.status || "pending"}
-                        </span>
-                        <p className="text-sm text-gray-500">
-                          Preferred time: {task.preferredTime || 'Any time'}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+          </section>
+        )}
+
+        {activeTab === 'profile' && user && (
+          <section>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">My Profile</h2>
+            <div className="bg-white p-6 rounded-lg shadow">
+              {/* Render the UserProfile component for the current user */}
+              <UserProfile />
+            </div>
           </section>
         )}
 
@@ -1057,6 +1336,31 @@ export default function ResidentDashboard() {
         onClose={() => setIsServiceModalOpen(false)}
         staffMember={selectedStaffMember}
         onSubmit={handleServiceRequestSubmit}
+      />
+      {/* Rating Modal */}
+      <RatingModal
+        open={ratingModal.open}
+        onClose={() => setRatingModal({ open: false, requestId: null })}
+        onSubmit={async (rating) => {
+          if (!ratingModal.requestId) return;
+          const token = localStorage.getItem('token');
+          const url = `${config.apiBaseUrl}/api/requests/${ratingModal.requestId}/rate`;
+          const options = {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ rating })
+          };
+          console.log('RatingModal fetch:', { url, options });
+          const res = await fetch(url, options);
+          let data = null;
+          try { data = await res.json(); } catch (e) { data = null; }
+          console.log('RatingModal response:', { status: res.status, data });
+          setRatingModal({ open: false, requestId: null });
+          refreshRequests();
+        }}
       />
     </div>
   );

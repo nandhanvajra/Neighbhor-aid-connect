@@ -27,6 +27,8 @@ export default function UserProfilePage({ editMode }) {
   const [error, setError] = useState('');
   const [isCurrentUser, setIsCurrentUser] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [averageRating, setAverageRating] = useState(null);
+  const [totalRatings, setTotalRatings] = useState(0);
 
   console.log('UserProfilePage rendered with userId:', userId, 'editMode:', editMode);
 
@@ -35,6 +37,7 @@ export default function UserProfilePage({ editMode }) {
     fetchUserProfile();
     if (!editMode) checkCurrentUser();
     else setIsCurrentUser(true);
+    if (userId) fetchUserRatings();
   }, [userId, editMode]);
 
   const checkCurrentUser = async () => {
@@ -86,6 +89,19 @@ export default function UserProfilePage({ editMode }) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUserRatings = async () => {
+    try {
+      const response = await fetch(`${config.apiBaseUrl}/api/users/${userId}/ratings`);
+      if (response.ok) {
+        const data = await response.json();
+        setAverageRating(data.averageRating);
+        setTotalRatings(data.totalRatings);
+      }
+    } catch (err) {
+      // ignore
     }
   };
 
@@ -192,13 +208,23 @@ export default function UserProfilePage({ editMode }) {
                     {user.role}
                   </span>
                 )}
+                {/* Show average rating if available */}
+                {(user.rating > 0 || averageRating > 0) && (
+                  <div className="flex items-center justify-center mt-2">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <svg key={i} className={`w-5 h-5 ${i < Math.round(user.rating || averageRating) ? 'fill-current text-yellow-400' : 'text-gray-300'}`} viewBox="0 0 20 20"><polygon points="9.9,1.1 7.6,6.6 1.6,7.3 6.1,11.2 4.8,17.1 9.9,14.1 15,17.1 13.7,11.2 18.2,7.3 12.2,6.6 "/></svg>
+                    ))}
+                    <span className="ml-2 text-yellow-200 font-semibold">{(user.rating || averageRating).toFixed(2)} / 5</span>
+                    <span className="ml-2 text-orange-100 text-xs">{user.totalRatings || totalRatings} rating{(user.totalRatings || totalRatings) !== 1 ? 's' : ''}</span>
+                  </div>
+                )}
               </div>
 
               {/* Quick Actions */}
               <div className="p-6">
                 {!isCurrentUser && (
                   <button
-                    onClick={() => navigate(`/dashboard?tab=chats&user=${user.id}`)}
+                    onClick={() => navigate(`/chat/${user.id}`)}
                     className="w-full mb-3 flex items-center justify-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
                   >
                     <MessageCircle size={16} className="mr-2" />

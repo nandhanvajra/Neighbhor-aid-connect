@@ -28,6 +28,9 @@ export default function UserProfile() {
   const [skillInput, setSkillInput] = useState('');
   const [requestPreferences, setRequestPreferences] = useState([]);
 
+  // Stats state
+  const [stats, setStats] = useState({ posted: 0, solved: 0, helped: 0 });
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -46,7 +49,6 @@ export default function UserProfile() {
     },
     preferences: {
       notifications: true,
-      emailUpdates: true,
       publicProfile: true
     }
   });
@@ -54,6 +56,12 @@ export default function UserProfile() {
   useEffect(() => {
     fetchUserProfile();
   }, []);
+
+  useEffect(() => {
+    if (user && (user._id || user.id)) {
+      fetchUserStats(user._id || user.id);
+    }
+  }, [user]);
 
   const fetchUserProfile = async () => {
     try {
@@ -94,7 +102,6 @@ export default function UserProfile() {
         },
         preferences: {
           notifications: data.user.preferences?.notifications ?? true,
-          emailUpdates: data.user.preferences?.emailUpdates ?? true,
           publicProfile: data.user.preferences?.publicProfile ?? true
         }
       });
@@ -103,6 +110,29 @@ export default function UserProfile() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch and compute user stats
+  const fetchUserStats = async (userId) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const response = await fetch(`${config.apiBaseUrl}/api/requests/all`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (!data.requests || !Array.isArray(data.requests)) return;
+      const posted = data.requests.filter(r => r.userId === userId).length;
+      const solved = data.requests.filter(r => r.userId === userId && r.status === 'completed').length;
+      const helped = data.requests.filter(r => r.completedBy === userId && (r.status === 'in-progress' || r.status === 'completed')).length;
+      setStats({ posted, solved, helped });
+    } catch (err) {
+      // ignore
     }
   };
 
@@ -197,7 +227,6 @@ export default function UserProfile() {
       },
       preferences: {
         notifications: user.preferences?.notifications ?? true,
-        emailUpdates: user.preferences?.emailUpdates ?? true,
         publicProfile: user.preferences?.publicProfile ?? true
       }
     });
@@ -290,6 +319,22 @@ export default function UserProfile() {
               <p className="text-green-700 text-sm">{success}</p>
             </div>
           )}
+
+          {/* User Stats */}
+          <div className="mb-6 flex gap-6">
+            <div className="bg-blue-50 rounded-lg p-4 flex-1 text-center">
+              <div className="text-2xl font-bold text-blue-600">{stats.posted}</div>
+              <div className="text-sm text-gray-600">Requests Posted</div>
+            </div>
+            <div className="bg-green-50 rounded-lg p-4 flex-1 text-center">
+              <div className="text-2xl font-bold text-green-600">{stats.solved}</div>
+              <div className="text-sm text-gray-600">Requests Solved</div>
+            </div>
+            <div className="bg-yellow-50 rounded-lg p-4 flex-1 text-center">
+              <div className="text-2xl font-bold text-yellow-600">{stats.helped}</div>
+              <div className="text-sm text-gray-600">Requests Helped With</div>
+            </div>
+          </div>
 
           {/* Profile Content */}
           <div className="p-6">
@@ -562,74 +607,6 @@ export default function UserProfile() {
                     onChange={(e) => updateFormData('emergencyContact.relationship', e.target.value)}
                     disabled={!editing}
                   />
-                </div>
-              </div>
-            </div>
-
-            {/* Preferences */}
-            <div className="mt-8 pt-8 border-t">
-              <h2 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-6">
-                Preferences
-              </h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-md">
-                  <div className="flex items-center">
-                    <Bell className="text-gray-400 mr-3" size={20} />
-                    <div>
-                      <h3 className="font-medium text-gray-800">{config.profile.formLabels.notifications}</h3>
-                      <p className="text-sm text-gray-600">Receive notifications about community updates</p>
-                    </div>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={formData.preferences.notifications}
-                      onChange={(e) => updateFormData('preferences.notifications', e.target.checked)}
-                      disabled={!editing}
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500 disabled:opacity-50"></div>
-                  </label>
-                </div>
-
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-md">
-                  <div className="flex items-center">
-                    <Mail className="text-gray-400 mr-3" size={20} />
-                    <div>
-                      <h3 className="font-medium text-gray-800">{config.profile.formLabels.emailUpdates}</h3>
-                      <p className="text-sm text-gray-600">Receive email updates and newsletters</p>
-                    </div>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={formData.preferences.emailUpdates}
-                      onChange={(e) => updateFormData('preferences.emailUpdates', e.target.checked)}
-                      disabled={!editing}
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500 disabled:opacity-50"></div>
-                  </label>
-                </div>
-
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-md">
-                  <div className="flex items-center">
-                    <Shield className="text-gray-400 mr-3" size={20} />
-                    <div>
-                      <h3 className="font-medium text-gray-800">{config.profile.formLabels.publicProfile}</h3>
-                      <p className="text-sm text-gray-600">Allow others to see your profile information</p>
-                    </div>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={formData.preferences.publicProfile}
-                      onChange={(e) => updateFormData('preferences.publicProfile', e.target.checked)}
-                      disabled={!editing}
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500 disabled:opacity-50"></div>
-                  </label>
                 </div>
               </div>
             </div>

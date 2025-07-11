@@ -37,7 +37,9 @@ const userSchema = new mongoose.Schema({
       emailUpdates: { type: Boolean, default: true },
       publicProfile: { type: Boolean, default: true }
     },
-    requestPreferences: [{ type: String, trim: true }]
+    requestPreferences: [{ type: String, trim: true }],
+    rating: { type: Number, default: 0 },
+    totalRatings: { type: Number, default: 0 }
   });
   
 // Encrypt password before saving

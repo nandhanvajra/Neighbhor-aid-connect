@@ -46,7 +46,15 @@ const requestSchema = new mongoose.Schema({
   completedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    
+  },
+  rating: {
+    type: Number,
+    min: 1,
+    max: 5
+  },
+  ratedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   }
 });
 

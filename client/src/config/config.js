@@ -188,7 +188,7 @@ const config = {
     { id: 'requests', label: 'Requests', icon: 'FileText', adminOnly: false },
     { id: 'staff', label: 'Staff', icon: 'Star', adminOnly: false },
     { id: 'chats', label: 'Chats', icon: 'MessageCircle', adminOnly: false },
-    { id: 'house', label: 'House', icon: 'Users', adminOnly: false },
+    { id: 'profile', label: 'Profile', icon: 'User', adminOnly: false },
     { id: 'notifications', label: 'Notifications', icon: 'Bell', adminOnly: false },
     { id: 'directory', label: 'Service Directory', icon: 'Wrench', adminOnly: false },
     { id: 'assignroles', label: 'Manage Roles', icon: 'UserCog', adminOnly: true }

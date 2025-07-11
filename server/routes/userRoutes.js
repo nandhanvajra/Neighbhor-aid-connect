@@ -75,6 +75,21 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// GET /api/users/:id/ratings - Get average rating and count for a user
+router.get('/:id/ratings', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    // Find all completed requests where this user was the helper and rated
+    const requests = await Request.find({ completedBy: userId, status: 'completed', rating: { $exists: true } });
+    const ratings = requests.map(r => r.rating).filter(r => typeof r === 'number');
+    const totalRatings = ratings.length;
+    const averageRating = totalRatings > 0 ? (ratings.reduce((a, b) => a + b, 0) / totalRatings) : 0;
+    res.status(200).json({ averageRating, totalRatings });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 // Update user role and requestPreferences
 router.put('/:userId', async (req, res) => {
   console.log('...................')
