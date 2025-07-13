@@ -12,6 +12,7 @@ export default function ChatApplication() {
   const [messages, setMessages] = useState([]);
   const [newMsg, setNewMsg] = useState('');
   const [user, setUser] = useState(null);
+  const [chatId, setChatId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
@@ -61,60 +62,92 @@ export default function ChatApplication() {
 
   // Fetch initial messages
   useEffect(() => {
-    if (!chatid) {
-      console.error("No chatid provided in URL");
+    if (!chatid || !user) {
+      console.error("No chatid or user provided");
       setLoading(false);
-      setError("No chat ID found in URL. Please navigate to a valid chat room.");
+      setError("No chat ID or user found. Please navigate to a valid chat room.");
       return;
     }
     
-    console.log("Fetching messages for chatid:", chatid);
+    console.log("Setting up chat for chatid:", chatid, "with user:", user._id);
     setLoading(true);
+    setError(null); // Clear any previous errors
 
-    // Try the messages route first
-    fetch(`${config.apiBaseUrl}/api/messages/${chatid}`)
-      .then(res => {
-        console.log("Messages fetch response status:", res.status);
-        if (!res.ok) {
-          // If first route fails, try the alternative route
-          console.log("First route failed, trying alternative...");
-          return fetch(`${config.apiBaseUrl}/api/chat/${chatid}/messages`);
+    // First, create or get the chat room
+    const setupChat = async () => {
+      try {
+        // Get authentication token
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('No authentication token found');
         }
-        return res;
-      })
-      .then(res => {
-        if (!res.ok) throw new Error(`Failed to load messages: ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        console.log("Received messages:", data);
-        if (Array.isArray(data)) {
-          setMessages(data);
+
+        // Create or get chat between current user and the other user (chatid)
+        const chatResponse = await fetch(`${config.apiBaseUrl}/api/chat/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            participant1: user._id,
+            participant2: chatid
+          })
+        });
+
+        if (!chatResponse.ok) {
+          throw new Error(`Failed to create/get chat: ${chatResponse.status}`);
+        }
+
+        const chatData = await chatResponse.json();
+        console.log("Chat created/retrieved:", chatData);
+
+        // Now fetch messages for this chat
+        const messagesResponse = await fetch(`${config.apiBaseUrl}/api/chat/${chatData._id}/messages`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!messagesResponse.ok) {
+          throw new Error(`Failed to load messages: ${messagesResponse.status}`);
+        }
+
+        const messagesData = await messagesResponse.json();
+        console.log("Received messages:", messagesData);
+        
+        if (Array.isArray(messagesData)) {
+          setMessages(messagesData);
           // Store message IDs to prevent duplicates
-          data.forEach(msg => {
+          messagesData.forEach(msg => {
             if (msg._id) processedMessages.current.add(msg._id);
           });
         } else {
-          console.error('Invalid message format from server:', data);
+          console.error('Invalid message format from server:', messagesData);
           setError('Failed to load messages: Invalid data format');
         }
-      })
-      .catch(err => {
-        console.error('Error loading messages:', err);
-        setError(`Failed to load messages: ${err.message}`);
-      })
-      .finally(() => {
+
+        // Store the actual chat ID for sending messages
+        setChatId(chatData._id);
+        setError(null); // Clear any errors on success
+      } catch (err) {
+        console.error('Error setting up chat:', err);
+        setError(`Failed to set up chat: ${err.message}`);
+      } finally {
         setLoading(false);
-      });
-  }, [chatid]);
+      }
+    };
+
+    setupChat();
+  }, [chatid, user]);
 
   // Socket.io setup with duplicate prevention
   useEffect(() => {
-    if (!chatid) return;
+    if (!chatId) return;
     
-    console.log(`Joining socket room: ${chatid}`);
+    console.log(`Joining socket room: ${chatId}`);
     // Join the chat room
-    socket.emit('joinRoom', chatid);
+    socket.emit('joinRoom', chatId);
     
     // Handle incoming messages with duplicate prevention
     const handleReceiveMessage = (msg) => {
@@ -153,11 +186,11 @@ export default function ChatApplication() {
     
     // Cleanup function
     return () => {
-      console.log(`Leaving socket room: ${chatid}`);
+      console.log(`Leaving socket room: ${chatId}`);
       socket.off('receiveMessage', handleReceiveMessage);
-      socket.emit('leaveRoom', chatid);
+      socket.emit('leaveRoom', chatId);
     };
-  }, [chatid]);
+  }, [chatId]);
 
   // Auto-scroll to bottom when messages update
   useEffect(() => {
@@ -182,9 +215,9 @@ export default function ChatApplication() {
     
     if (!newMsg.trim()) return;
     
-    if (!chatid) {
+    if (!chatId) {
       setError('No chat ID found. Please navigate to a valid chat room.');
-      console.error('Missing chatid', { chatid });
+      console.error('Missing chatId', { chatId });
       return;
     }
 
@@ -194,7 +227,7 @@ export default function ChatApplication() {
       return;
     }
     
-    console.log("Sending message:", { chatid, userId: user._id, text: newMsg });
+    console.log("Sending message:", { chatId, userId: user._id, text: newMsg });
     
     // Optimistically add message to UI
     const tempId = `temp_${Date.now()}`;
@@ -213,13 +246,18 @@ export default function ChatApplication() {
     setNewMsg('');
     
     try {
-      const response = await fetch(`${config.apiBaseUrl}/api/chat/${chatid}/messages`, {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(`${config.apiBaseUrl}/api/chat/${chatId}/messages`, {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ 
-          senderId: user._id, 
           text: newMsg 
         })
       });
@@ -235,6 +273,9 @@ export default function ChatApplication() {
       // Just capture the ID to prevent duplicates
       const message = await response.json();
       if (message._id) processedMessages.current.add(message._id);
+      
+      // Clear any errors on successful send
+      setError(null);
       
     } catch (err) {
       console.error('Failed to send message:', err);
@@ -259,7 +300,10 @@ export default function ChatApplication() {
       <div className="bg-white shadow-md p-4 flex justify-between items-center">
         <div>
           <h2 className="text-xl font-bold text-orange-600">Neighborhood Connect</h2>
-          <p className="text-sm text-gray-500">Chat Room: {chatid || 'Unknown'}</p>
+          <p className="text-sm text-gray-500">
+            Chat with: {chatid || 'Unknown'}
+            {chatId && <span className="ml-2 text-xs text-gray-400">(Room: {chatId.slice(-8)})</span>}
+          </p>
         </div>
         {user && (
           <div className="text-sm bg-green-50 px-3 py-1 rounded-full border border-green-200">
@@ -290,7 +334,9 @@ export default function ChatApplication() {
               <div className="flex justify-center items-center h-full">
                 <div className="animate-pulse flex flex-col items-center">
                   <div className="h-8 w-8 bg-orange-200 rounded-full"></div>
-                  <p className="text-gray-500 mt-2">Loading messages...</p>
+                  <p className="text-gray-500 mt-2">
+                    {!chatId ? 'Setting up chat room...' : 'Loading messages...'}
+                  </p>
                 </div>
               </div>
             ) : messages.length === 0 ? (
@@ -299,6 +345,7 @@ export default function ChatApplication() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
                 <p className="text-center">No messages yet. Start the conversation!</p>
+                <p className="text-xs text-gray-300 mt-1">Chat room is ready</p>
               </div>
             ) : (
               messages.map((msg, index) => {

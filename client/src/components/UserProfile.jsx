@@ -14,7 +14,9 @@ import {
   Bell,
   Heart,
   Settings,
-  Check
+  Check,
+  Star,
+  Eye
 } from 'lucide-react';
 import config from '../config/config';
 
@@ -30,6 +32,7 @@ export default function UserProfile() {
 
   // Stats state
   const [stats, setStats] = useState({ posted: 0, solved: 0, helped: 0 });
+  const [ratingStats, setRatingStats] = useState(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -59,7 +62,9 @@ export default function UserProfile() {
 
   useEffect(() => {
     if (user && (user._id || user.id)) {
-      fetchUserStats(user._id || user.id);
+      const userId = user._id || user.id;
+      fetchUserStats(userId);
+      fetchUserRatingStats(userId);
     }
   }, [user]);
 
@@ -72,7 +77,7 @@ export default function UserProfile() {
         return;
       }
 
-      const response = await fetch(`${config.apiBaseUrl}/api/user`, {
+      const response = await fetch(`${config.apiBaseUrl}/api/auth/user`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -136,6 +141,19 @@ export default function UserProfile() {
     }
   };
 
+  // Fetch user rating statistics
+  const fetchUserRatingStats = async (userId) => {
+    try {
+      const response = await fetch(`${config.apiBaseUrl}/api/ratings/user/${userId}/stats`);
+      if (response.ok) {
+        const data = await response.json();
+        setRatingStats(data.stats);
+      }
+    } catch (err) {
+      // ignore
+    }
+  };
+
   const updateFormData = (field, value) => {
     if (field.includes('.')) {
       const [parent, child] = field.split('.');
@@ -179,7 +197,7 @@ export default function UserProfile() {
     try {
       const token = localStorage.getItem('token');
       const saveData = { ...formData, requestPreferences };
-      const response = await fetch(`${config.apiBaseUrl}/api/user/profile`, {
+      const response = await fetch(`${config.apiBaseUrl}/api/auth/user/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -334,6 +352,34 @@ export default function UserProfile() {
               <div className="text-2xl font-bold text-yellow-600">{stats.helped}</div>
               <div className="text-sm text-gray-600">Requests Helped With</div>
             </div>
+            {ratingStats && ratingStats.totalRatings > 0 && (
+              <div className="bg-orange-50 rounded-lg p-4 flex-1 text-center">
+                <div className="flex items-center justify-center mb-1">
+                  <div className="text-2xl font-bold text-orange-600 mr-2">{ratingStats.averageRating.toFixed(1)}</div>
+                  <div className="flex">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        size={16}
+                        className={`${
+                          star <= Math.round(ratingStats.averageRating)
+                            ? 'text-yellow-500 fill-current'
+                            : 'text-gray-300'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600 mb-2">Average Rating ({ratingStats.totalRatings} ratings)</div>
+                <button
+                  onClick={() => window.location.href = `/ratings/${user._id || user.id}`}
+                  className="inline-flex items-center px-3 py-1 bg-orange-500 text-white text-xs rounded-full hover:bg-orange-600 transition-colors"
+                >
+                  <Eye size={12} className="mr-1" />
+                  View All Ratings
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Profile Content */}

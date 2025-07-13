@@ -9,6 +9,7 @@ import DashBoard from './components/dashboard'
 import PostRequest from './components/PostReqest'
 import ChatApplication from './components/ChatApplication'
 import UserProfilePage from './components/UserProfilePage'
+import UserRatingsPage from './components/UserRatingsPage'
 
 function App() {
   const [count, setCount] = useState(0)
@@ -25,6 +26,7 @@ function App() {
             <Route path='/chat/:chatid' element={<ChatApplication/>}/>
             <Route path='/profile/:userId' element={<UserProfilePage/>}/>
             <Route path='/profile/edit' element={<UserProfilePage editMode={true}/>}/>
+            <Route path='/ratings/:userId' element={<UserRatingsPage/>}/>
           </Routes>
       
       </>

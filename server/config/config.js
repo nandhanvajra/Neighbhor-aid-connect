@@ -48,6 +48,7 @@ const config = {
   
   // Available Roles - Now dynamic and configurable
   availableRoles: [
+    'admin',
     'resident',
     'volunteer',
     'staff',

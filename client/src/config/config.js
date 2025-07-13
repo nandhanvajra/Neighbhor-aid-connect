@@ -191,7 +191,8 @@ const config = {
     { id: 'profile', label: 'Profile', icon: 'User', adminOnly: false },
     { id: 'notifications', label: 'Notifications', icon: 'Bell', adminOnly: false },
     { id: 'directory', label: 'Service Directory', icon: 'Wrench', adminOnly: false },
-    { id: 'assignroles', label: 'Manage Roles', icon: 'UserCog', adminOnly: true }
+    { id: 'assignroles', label: 'Manage Roles', icon: 'UserCog', adminOnly: true },
+    { id: 'admin', label: 'Admin Dashboard', icon: 'Shield', adminOnly: true }
   ],
   
   // Status Colors
@@ -211,10 +212,11 @@ const config = {
   
   // Staff Configuration
   staffConfig: {
-    defaultRating: 4.5,
-    defaultTotalRatings: 5,
     defaultAvailableHours: '9AM-6PM',
-    defaultRole: 'Volunteer'
+    defaultRole: 'Volunteer',
+    noRatingText: 'No ratings yet',
+    ratingText: 'ratings',
+    starText: '★'
   },
   
   // Quick Actions Configuration

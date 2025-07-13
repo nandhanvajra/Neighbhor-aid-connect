@@ -47,14 +47,32 @@ const requestSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
   },
+  // Enhanced rating system
   rating: {
-    type: Number,
-    min: 1,
-    max: 5
-  },
-  ratedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    stars: {
+      type: Number,
+      min: 1,
+      max: 5,
+      validate: {
+        validator: function(v) {
+          return v === null || (v >= 1 && v <= 5);
+        },
+        message: 'Rating must be between 1 and 5'
+      }
+    },
+    review: {
+      type: String,
+      maxlength: 500,
+      trim: true
+    },
+    ratedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    ratedAt: {
+      type: Date,
+      default: Date.now
+    }
   }
 });
 
@@ -62,6 +80,21 @@ const requestSchema = new mongoose.Schema({
 requestSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
   next();
+});
+
+// Virtual for checking if request is rated
+requestSchema.virtual('isRated').get(function() {
+  return this.rating && this.rating.stars && this.rating.ratedBy;
+});
+
+// Virtual for getting rating display
+requestSchema.virtual('ratingDisplay').get(function() {
+  if (!this.rating || !this.rating.stars) return null;
+  return {
+    stars: this.rating.stars,
+    review: this.rating.review,
+    ratedAt: this.rating.ratedAt
+  };
 });
 
 const Request = mongoose.model('Request', requestSchema);

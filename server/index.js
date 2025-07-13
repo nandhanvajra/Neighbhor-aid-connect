@@ -12,6 +12,8 @@ const messageRoutes = require('./routes/messageRoutes');
 const userRoutes = require('./routes/userRoutes');
 const volunteerRoutes = require('./routes/volunteerRoutes');
 const requestRoutes = require('./routes/requestRoutes');
+const ratingRoutes = require('./routes/ratingRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -24,19 +26,21 @@ app.use(cors(config.cors));
 app.use(express.json());
 app.use(cookieParser());
 
-// Attach io to req so we can emit from routes
+// Add io to request object for socket access in routes
 app.use((req, res, next) => {
   req.io = io;
   next();
 });
 
 // Routes
-app.use('/api', authRoutes);
-app.use('/api/chat', chatRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/chats', chatRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/volunteers', volunteerRoutes);
 app.use('/api/requests', requestRoutes);
+app.use('/api/ratings', ratingRoutes);
+app.use('/api/admin', adminRoutes);
 
 
 // MongoDB connection

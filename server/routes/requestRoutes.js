@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Request = require('../models/requestSchema');
 const User = require('../models/userSchema');
-const auth = require('../middleware/auth');
+const { auth } = require('../middleware/auth');
 
 // POST /api/requests - Create a new help request
 router.post('/', auth, async (req, res) => {
@@ -228,43 +228,46 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
-// PATCH /api/requests/:id/rate - Rate the helper for a completed request
+// PATCH /api/requests/:id/rate - Rate the helper for a completed request (legacy endpoint)
 router.patch('/:id/rate', auth, async (req, res) => {
   try {
     const { rating } = req.body;
     if (!rating || rating < 1 || rating > 5) {
       return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
     }
+    
     const request = await Request.findById(req.params.id);
     if (!request) {
       return res.status(404).json({ success: false, message: 'Request not found' });
     }
+    
     // Only the user who posted the request can rate, and only if completed
     if (request.userId.toString() !== req.user.userId) {
       return res.status(403).json({ success: false, message: 'Not authorized to rate this request' });
     }
+    
     if (request.status !== 'completed') {
       return res.status(400).json({ success: false, message: 'Can only rate completed requests' });
     }
-    if (request.rating) {
+    
+    if (request.rating && request.rating.stars) {
       return res.status(400).json({ success: false, message: 'Request already rated' });
     }
-    request.rating = rating;
-    request.ratedBy = req.user.userId;
+
+    // Update request with basic rating info
+    request.rating = {
+      stars: rating,
+      review: '',
+      ratedBy: req.user.userId,
+      ratedAt: new Date()
+    };
     await request.save();
 
-    // Update helper's average rating and totalRatings
+    // Update helper's rating statistics using the new method
     if (request.completedBy) {
       const helper = await User.findById(request.completedBy);
       if (helper) {
-        // Calculate new average
-        const prevTotal = helper.totalRatings || 0;
-        const prevAvg = helper.rating || 0;
-        const newTotal = prevTotal + 1;
-        const newAvg = ((prevAvg * prevTotal) + rating) / newTotal;
-        helper.rating = newAvg;
-        helper.totalRatings = newTotal;
-        await helper.save();
+        await helper.updateRatingStats(rating);
       }
     }
 

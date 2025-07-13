@@ -38,8 +38,19 @@ const userSchema = new mongoose.Schema({
       publicProfile: { type: Boolean, default: true }
     },
     requestPreferences: [{ type: String, trim: true }],
-    rating: { type: Number, default: 0 },
-    totalRatings: { type: Number, default: 0 }
+    // Enhanced rating system
+    rating: { 
+      average: { type: Number, default: 0, min: 0, max: 5 },
+      totalRatings: { type: Number, default: 0 },
+      ratingBreakdown: {
+        1: { type: Number, default: 0 },
+        2: { type: Number, default: 0 },
+        3: { type: Number, default: 0 },
+        4: { type: Number, default: 0 },
+        5: { type: Number, default: 0 }
+      },
+      lastRatedAt: { type: Date }
+    }
   });
   
 // Encrypt password before saving
@@ -58,6 +69,32 @@ userSchema.pre('save', async function (next) {
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
+
+// Method to update user rating statistics
+userSchema.methods.updateRatingStats = async function(newRating) {
+  const prevTotal = this.rating.totalRatings || 0;
+  const prevAvg = this.rating.average || 0;
+  const newTotal = prevTotal + 1;
+  const newAvg = ((prevAvg * prevTotal) + newRating) / newTotal;
+  
+  this.rating.average = newAvg;
+  this.rating.totalRatings = newTotal;
+  this.rating.ratingBreakdown[newRating] = (this.rating.ratingBreakdown[newRating] || 0) + 1;
+  this.rating.lastRatedAt = new Date();
+  
+  await this.save();
+  return this.rating;
+};
+
+// Virtual for rating display
+userSchema.virtual('ratingDisplay').get(function() {
+  return {
+    average: this.rating.average,
+    totalRatings: this.rating.totalRatings,
+    breakdown: this.rating.ratingBreakdown,
+    hasRatings: this.rating.totalRatings > 0
+  };
+});
 
 const User = mongoose.model('User', userSchema);
 module.exports = User;

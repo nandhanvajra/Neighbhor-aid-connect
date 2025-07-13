@@ -45,7 +45,7 @@ export default function UserProfilePage({ editMode }) {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch(`${config.apiBaseUrl}/api/user`, {
+      const response = await fetch(`${config.apiBaseUrl}/api/auth/user`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -54,7 +54,7 @@ export default function UserProfilePage({ editMode }) {
       if (response.ok) {
         const data = await response.json();
         setCurrentUser(data.user);
-        setIsCurrentUser(data.user.id === userId);
+        setIsCurrentUser((data.user._id || data.user.id) === userId);
       }
     } catch (err) {
       console.error('Error checking current user:', err);
@@ -67,7 +67,7 @@ export default function UserProfilePage({ editMode }) {
       let response;
       if (editMode) {
         const token = localStorage.getItem('token');
-        response = await fetch(`${config.apiBaseUrl}/api/user/profile`, {
+        response = await fetch(`${config.apiBaseUrl}/api/auth/user/profile`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -106,8 +106,9 @@ export default function UserProfilePage({ editMode }) {
   };
 
   const getJobLabel = (jobValue) => {
-    const jobOption = config.jobs.find(job => job.value === jobValue);
-    return jobOption ? jobOption.label : jobValue;
+    // For now, just return the job value as is
+    // You can add job options to config if needed
+    return jobValue || 'Not specified';
   };
 
   const formatDate = (dateString) => {
@@ -229,6 +230,17 @@ export default function UserProfilePage({ editMode }) {
                   >
                     <MessageCircle size={16} className="mr-2" />
                     Send Message
+                  </button>
+                )}
+                
+                {/* View All Ratings Button */}
+                {(user.rating?.totalRatings > 0 || totalRatings > 0) && (
+                  <button
+                    onClick={() => navigate(`/ratings/${userId}`)}
+                    className="w-full mb-3 flex items-center justify-center px-4 py-2 border border-orange-500 text-orange-500 rounded-md hover:bg-orange-50 transition-colors"
+                  >
+                    <Star size={16} className="mr-2" />
+                    View All Ratings
                   </button>
                 )}
                 

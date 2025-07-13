@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Message = require('../models/Message');
+const Message = require('../models/messageSchema');
 
 // Fetch messages by chatId
 router.get('/:chatId', async (req, res) => {

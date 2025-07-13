@@ -2,10 +2,166 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/userSchema');
+const Activity = require('../models/activitySchema');
 const router = express.Router();
 
 // Use a constant secret key
 const jwtSecret = 'superSecretHardcodedKey123';
+
+// Admin creation secret key (you should change this to a secure value)
+const ADMIN_SECRET = 'adminSecretKey2024';
+
+// POST /api/auth/create-admin - Create admin user (for Postman/API use)
+router.post('/create-admin', async (req, res) => {
+  const { 
+    name, 
+    email, 
+    password, 
+    address, 
+    job,
+    phone,
+    bio,
+    skills,
+    profilePicture,
+    dateOfBirth,
+    gender,
+    occupation,
+    emergencyContact,
+    preferences,
+    adminSecret
+  } = req.body;
+
+  try {
+    // Verify admin secret
+    if (adminSecret !== ADMIN_SECRET) {
+      console.log('→ Admin creation failed: invalid secret');
+      return res.status(403).json({ 
+        message: 'Unauthorized: Invalid admin secret key',
+        error: 'ADMIN_SECRET_MISMATCH'
+      });
+    }
+
+    // Validate required fields
+    if (!name || !email || !password || !address || !job) {
+      return res.status(400).json({ 
+        message: 'Missing required fields: name, email, password, address, job',
+        error: 'MISSING_REQUIRED_FIELDS'
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      console.log('→ Admin creation failed: user exists');
+      return res.status(400).json({ 
+        message: 'User with this email already exists',
+        error: 'USER_ALREADY_EXISTS'
+      });
+    }
+    
+    // Create admin user
+    const newAdmin = await User.create({ 
+      name, 
+      email, 
+      password, 
+      address,
+      job,
+      phone,
+      bio,
+      skills,
+      profilePicture,
+      dateOfBirth,
+      gender,
+      occupation,
+      emergencyContact,
+      preferences,
+      isAdmin: true, // Set admin flag
+      role: 'admin'  // Set admin role
+    });
+
+    console.log('→ Admin user created successfully:', newAdmin.email);
+    
+    // Log admin creation activity
+    await Activity.logActivity({
+      userId: newAdmin._id,
+      userName: newAdmin.name,
+      userEmail: newAdmin.email,
+      action: 'admin_action',
+      details: {
+        action: 'admin_creation',
+        createdBy: 'system',
+        adminSecret: adminSecret ? 'provided' : 'missing'
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+    
+    // Create and return token
+    const token = jwt.sign(
+      { userId: newAdmin._id },
+      jwtSecret,
+      { expiresIn: '7d' }
+    );
+    
+    return res.status(201).json({ 
+      message: 'Admin user created successfully',
+      token,
+      user: {
+        id: newAdmin._id,
+        name: newAdmin.name,
+        email: newAdmin.email,
+        address: newAdmin.address,
+        job: newAdmin.job,
+        isAdmin: newAdmin.isAdmin,
+        role: newAdmin.role,
+        phone: newAdmin.phone,
+        bio: newAdmin.bio,
+        skills: newAdmin.skills,
+        profilePicture: newAdmin.profilePicture,
+        dateOfBirth: newAdmin.dateOfBirth,
+        gender: newAdmin.gender,
+        occupation: newAdmin.occupation,
+        emergencyContact: newAdmin.emergencyContact,
+        preferences: newAdmin.preferences,
+        createdAt: newAdmin.createdAt
+      }
+    });
+  } catch (err) {
+    console.error('Admin creation error:', err);
+    return res.status(500).json({ 
+      message: 'Admin creation failed', 
+      error: err.message 
+    });
+  }
+});
+
+// GET /api/auth/admins - List all admin users (for verification)
+router.get('/admins', async (req, res) => {
+  try {
+    const admins = await User.find({ isAdmin: true })
+      .select('-password')
+      .sort({ createdAt: -1 });
+    
+    res.status(200).json({
+      message: 'Admin users retrieved successfully',
+      count: admins.length,
+      admins: admins.map(admin => ({
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role,
+        isAdmin: admin.isAdmin,
+        createdAt: admin.createdAt
+      }))
+    });
+  } catch (err) {
+    console.error('Get admins error:', err);
+    res.status(500).json({ 
+      message: 'Failed to retrieve admin users', 
+      error: err.message 
+    });
+  }
+});
 
 // POST /api/auth/signup
 router.post('/signup', async (req, res) => {
@@ -50,6 +206,20 @@ router.post('/signup', async (req, res) => {
       preferences
     });
     console.log('→ Signup success:', newUser.email);
+    
+    // Log signup activity
+    await Activity.logActivity({
+      userId: newUser._id,
+      userName: newUser.name,
+      userEmail: newUser.email,
+      action: 'signup',
+      details: {
+        role: newUser.role,
+        isAdmin: newUser.isAdmin
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
     
     // Create and return token with the response for automatic login
     const token = jwt.sign(
@@ -108,6 +278,20 @@ router.post('/login', async (req, res) => {
     );
     
     console.log('Login successful, token generated');
+    
+    // Log login activity
+    await Activity.logActivity({
+      userId: user._id,
+      userName: user.name,
+      userEmail: user.email,
+      action: 'login',
+      details: {
+        role: user.role,
+        isAdmin: user.isAdmin
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
     
     return res.status(200).json({ 
       token, 

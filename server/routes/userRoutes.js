@@ -3,7 +3,7 @@ const router = express.Router();
 const User = require('../models/userSchema');
 const Request = require('../models/requestSchema');
 const Message = require('../models/messageSchema');
-const auth=require('../middleware/auth')
+const { auth } = require('../middleware/auth')
 
 // Log all requests to user routes
 router.use((req, res, next) => {
@@ -79,13 +79,37 @@ router.get('/:id', async (req, res) => {
 router.get('/:id/ratings', async (req, res) => {
   try {
     const userId = req.params.id;
-    // Find all completed requests where this user was the helper and rated
-    const requests = await Request.find({ completedBy: userId, status: 'completed', rating: { $exists: true } });
-    const ratings = requests.map(r => r.rating).filter(r => typeof r === 'number');
-    const totalRatings = ratings.length;
-    const averageRating = totalRatings > 0 ? (ratings.reduce((a, b) => a + b, 0) / totalRatings) : 0;
-    res.status(200).json({ averageRating, totalRatings });
+    
+    // Use the new rating system if available, fallback to old system
+    const Rating = require('../models/ratingSchema');
+    
+    try {
+      const stats = await Rating.getUserRatingStats(userId);
+      res.status(200).json({ 
+        averageRating: stats.averageRating, 
+        totalRatings: stats.totalRatings,
+        ratingBreakdown: stats.ratingBreakdown
+      });
+    } catch (ratingErr) {
+      // Fallback to old system
+      const requests = await Request.find({ 
+        completedBy: userId, 
+        status: 'completed', 
+        'rating.stars': { $exists: true } 
+      });
+      
+      const ratings = requests.map(r => r.rating.stars).filter(r => typeof r === 'number');
+      const totalRatings = ratings.length;
+      const averageRating = totalRatings > 0 ? (ratings.reduce((a, b) => a + b, 0) / totalRatings) : 0;
+      
+      res.status(200).json({ 
+        averageRating, 
+        totalRatings,
+        ratingBreakdown: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+      });
+    }
   } catch (err) {
+    console.error('Get user ratings error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
