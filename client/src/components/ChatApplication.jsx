@@ -83,7 +83,7 @@ export default function ChatApplication() {
         }
 
         // Create or get chat between current user and the other user (chatid)
-        const chatResponse = await fetch(`${config.apiBaseUrl}/api/chat/create`, {
+        const chatResponse = await fetch(`${config.apiBaseUrl}/api/chats/create`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -103,7 +103,7 @@ export default function ChatApplication() {
         console.log("Chat created/retrieved:", chatData);
 
         // Now fetch messages for this chat
-        const messagesResponse = await fetch(`${config.apiBaseUrl}/api/chat/${chatData._id}/messages`, {
+        const messagesResponse = await fetch(`${config.apiBaseUrl}/api/chats/${chatData._id}/messages`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -251,7 +251,7 @@ export default function ChatApplication() {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch(`${config.apiBaseUrl}/api/chat/${chatId}/messages`, {
+      const response = await fetch(`${config.apiBaseUrl}/api/chats/${chatId}/messages`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

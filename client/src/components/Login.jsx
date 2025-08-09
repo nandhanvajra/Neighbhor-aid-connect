@@ -19,7 +19,7 @@ export default function Login() {
 
     try {
       // Send login request to your server
-      const response = await fetch(`${config.apiBaseUrl}/api/login`, {
+      const response = await fetch(`${config.apiBaseUrl}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

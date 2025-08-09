@@ -18,6 +18,7 @@ import {
   MapPin as LocationIcon
 } from 'lucide-react';
 import config from '../config/config';
+import RatingModal from './RatingModal';
 
 export default function UserProfilePage({ editMode }) {
   const { userId } = useParams();
@@ -26,9 +27,9 @@ export default function UserProfilePage({ editMode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isCurrentUser, setIsCurrentUser] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
   const [averageRating, setAverageRating] = useState(null);
   const [totalRatings, setTotalRatings] = useState(0);
+  const [ratingModal, setRatingModal] = useState({ open: false, existingRating: null });
 
   console.log('UserProfilePage rendered with userId:', userId, 'editMode:', editMode);
 
@@ -53,7 +54,6 @@ export default function UserProfilePage({ editMode }) {
 
       if (response.ok) {
         const data = await response.json();
-        setCurrentUser(data.user);
         setIsCurrentUser((data.user._id || data.user.id) === userId);
       }
     } catch (err) {
@@ -253,6 +253,14 @@ export default function UserProfilePage({ editMode }) {
                     Edit Profile
                   </button>
                 )}
+                {user && isCurrentUser && (
+                  <button
+                    className="text-blue-600 hover:underline ml-2"
+                    onClick={() => setRatingModal({ open: true, existingRating: user.rating })}
+                  >
+                    Edit My Rating
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -415,6 +423,12 @@ export default function UserProfilePage({ editMode }) {
           </div>
         </div>
       </div>
+      <RatingModal
+        open={ratingModal.open}
+        onClose={() => setRatingModal({ open: false, existingRating: null })}
+        existingRating={ratingModal.existingRating}
+        onRated={fetchUserRatings}
+      />
     </div>
   );
 } 

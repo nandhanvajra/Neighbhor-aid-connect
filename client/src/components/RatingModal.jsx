@@ -1,15 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Star, X, Send, MessageSquare, Clock, Award } from 'lucide-react';
 import config from '../config/config';
 
-export default function RatingModal({ 
-  open, 
-  onClose, 
-  requestId, 
-  requestCategory, 
-  onRated, 
-  existingRating = null 
-}) {
+export default function RatingModal({ open, onClose, requestId, requestCategory, existingRating = null, onRated, loading = false, error = '' }) {
   const [hoveredOverall, setHoveredOverall] = useState(0);
   const [hoveredQuality, setHoveredQuality] = useState(0);
   const [hoveredCommunication, setHoveredCommunication] = useState(0);
@@ -21,16 +14,20 @@ export default function RatingModal({
   const [professionalism, setProfessionalism] = useState(existingRating?.professionalism || 0);
   const [isAnonymous, setIsAnonymous] = useState(existingRating?.isAnonymous || false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    setErrorMsg(error);
+  }, [error]);
 
   const handleRate = async () => {
     if (selected === 0) {
-      setError('Please select a rating');
+      setErrorMsg('Please select a rating');
       return;
     }
 
     setSubmitting(true);
-    setError('');
+    setErrorMsg('');
 
     try {
       const token = localStorage.getItem('token');
@@ -72,7 +69,7 @@ export default function RatingModal({
       if (onRated) onRated();
       onClose();
     } catch (err) {
-      setError(err.message);
+      setErrorMsg(err.message);
       console.error('Rating error:', err);
     } finally {
       setSubmitting(false);
@@ -199,9 +196,9 @@ export default function RatingModal({
           </div>
 
           {/* Error Message */}
-          {error && (
+          {errorMsg && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3">
-              <p className="text-sm text-red-600">{error}</p>
+              <p className="text-sm text-red-600">{errorMsg}</p>
             </div>
           )}
 

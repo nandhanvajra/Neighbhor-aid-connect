@@ -4,6 +4,7 @@ import { ArrowLeft, Star, Filter, SortAsc, SortDesc, MessageSquare } from 'lucid
 import RatingDisplay from './RatingDisplay';
 import RatingStats from './RatingStats';
 import config from '../config/config';
+import RatingModal from './RatingModal';
 
 export default function UserRatingsPage() {
   const { userId } = useParams();
@@ -17,6 +18,8 @@ export default function UserRatingsPage() {
   const [filter, setFilter] = useState('all'); // all, 5, 4, 3, 2, 1
   const [sortBy, setSortBy] = useState('createdAt'); // createdAt, stars, helpfulCount
   const [sortOrder, setSortOrder] = useState('desc'); // asc, desc
+  const [ratingModal, setRatingModal] = useState({ open: false, existingRating: null });
+  const [editingRating, setEditingRating] = useState(null);
 
   useEffect(() => {
     fetchUserRatings();
@@ -122,8 +125,6 @@ export default function UserRatingsPage() {
       return null;
     }
   };
-
-  const currentUser = getCurrentUser();
 
   if (loading && currentPage === 1) {
     return (
@@ -248,12 +249,17 @@ export default function UserRatingsPage() {
             </div>
           ) : (
             ratings.map((rating) => (
-              <RatingDisplay
-                key={rating._id}
-                rating={rating}
-                onHelpfulClick={handleHelpfulClick}
-                currentUserId={currentUser?.id}
-              />
+              <div key={rating._id} className="mb-4">
+                <RatingDisplay rating={rating} />
+                {rating.raterId === userId && (
+                  <button
+                    className="text-blue-600 hover:underline ml-2"
+                    onClick={() => setRatingModal({ open: true, existingRating: rating })}
+                  >
+                    Edit Rating
+                  </button>
+                )}
+              </div>
             ))
           )}
 
@@ -271,6 +277,12 @@ export default function UserRatingsPage() {
           )}
         </div>
       </div>
+      <RatingModal
+        open={ratingModal.open}
+        onClose={() => setRatingModal({ open: false, existingRating: null })}
+        existingRating={ratingModal.existingRating}
+        onRated={fetchUserRatings}
+      />
     </div>
   );
 } 

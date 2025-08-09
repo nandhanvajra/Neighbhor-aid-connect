@@ -122,7 +122,8 @@ router.post('/', auth, async (req, res) => {
         review: review || '',
         category,
         fromUser: req.user.userId,
-        requestId
+        requestId,
+        message: `You have been rated for helping with a request in category '${category}'.`
       });
     }
 
@@ -303,6 +304,19 @@ router.put('/:ratingId', auth, async (req, res) => {
       helper.rating.average = Math.round(averageRating * 100) / 100;
       helper.rating.totalRatings = totalRatings;
       await helper.save();
+    }
+
+    // Notify the rated user through Socket.io if available
+    if (req.io && rating.ratedUserId) {
+      req.io.to(rating.ratedUserId.toString()).emit('newRating', {
+        ratingId: rating._id,
+        stars,
+        review: review || '',
+        category: rating.category, // Assuming category is part of the rating object
+        fromUser: req.user.userId,
+        requestId: rating.requestId,
+        message: `A rating you received has been updated for category '${rating.category}'.`
+      });
     }
 
     res.status(200).json({

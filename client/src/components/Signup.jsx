@@ -45,7 +45,7 @@ export default function Signup() {
     setError('');
 
     try {
-      const response = await fetch(`${config.apiBaseUrl}/api/signup`, {
+      const response = await fetch(`${config.apiBaseUrl}/api/auth/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

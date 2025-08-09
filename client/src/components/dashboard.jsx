@@ -156,7 +156,6 @@ export default function ResidentDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [completedTasks, setCompletedTasks] = useState([]);
-  const [directoryData, setDirectoryData] = useState([]);
   const [directoryLoading, setDirectoryLoading] = useState(false);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [selectedStaffMember, setSelectedStaffMember] = useState(null);
@@ -168,8 +167,10 @@ export default function ResidentDashboard() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const navigate = useNavigate();
   // Add state for rating modal
-  const [ratingModal, setRatingModal] = useState({ open: false, requestId: null, requestCategory: null });
+  const [ratingModal, setRatingModal] = useState({ open: false, requestId: null, requestCategory: null, existingRating: null });
   const [selectedRole, setSelectedRole] = useState('all');
+  const [ratingLoading, setRatingLoading] = useState(false);
+  const [ratingError, setRatingError] = useState('');
 
   // Helper function to get user ID consistently
   const getUserId = () => user?._id || user?.id;
@@ -275,7 +276,7 @@ export default function ResidentDashboard() {
   useEffect(() => {
     if (activeTab === 'directory' && token) {
       setDirectoryLoading(true);
-      fetch(`${config.apiBaseUrl}/api/directory`, {
+      fetch(`${config.apiBaseUrl}/api/volunteers`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -289,12 +290,12 @@ export default function ResidentDashboard() {
         })
         .then(data => {
           console.log('Directory data response:', data);
-          setDirectoryData(data);
+          // setDirectoryData(data); // This line was removed as per the edit hint
           setDirectoryLoading(false);
         })
         .catch(err => {
           console.error('Error loading directory data', err);
-          setDirectoryData([]);
+          // setDirectoryData([]); // This line was removed as per the edit hint
           setDirectoryLoading(false);
         });
     }
@@ -723,6 +724,76 @@ export default function ResidentDashboard() {
     }
   };
 
+  const handleRateRequest = async (requestId, rating, review) => {
+    if (!user || !token) {
+      alert("You must be logged in to rate");
+      return;
+    }
+    setRatingLoading(true);
+    setRatingError('');
+    try {
+      const url = `${config.apiBaseUrl}/api/requests/${requestId}/rate`;
+      const options = {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ rating, review })
+      };
+      console.log('Rating fetch:', { url, options });
+      const res = await fetch(url, options);
+      let data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+      console.log('Rating response:', { status: res.status, data });
+      if (!res.ok) {
+        throw new Error((data && data.message) || 'Failed to submit rating');
+      }
+      alert(config.ratingModal.successMessage);
+      refreshRequests();
+    } catch (err) {
+      setRatingError(err.message);
+      console.error('Rating error:', err);
+    } finally {
+      setRatingLoading(false);
+    }
+  };
+
+  const handleEditRating = async (requestId, rating, review) => {
+    if (!user || !token) {
+      alert("You must be logged in to edit rating");
+      return;
+    }
+    setRatingLoading(true);
+    setRatingError('');
+    try {
+      const url = `${config.apiBaseUrl}/api/requests/${requestId}/rate`;
+      const options = {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ rating, review })
+      };
+      console.log('Editing rating fetch:', { url, options });
+      const res = await fetch(url, options);
+      let data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+      console.log('Editing rating response:', { status: res.status, data });
+      if (!res.ok) {
+        throw new Error((data && data.message) || 'Failed to edit rating');
+      }
+      alert(config.ratingModal.successMessage);
+      refreshRequests();
+    } catch (err) {
+      setRatingError(err.message);
+      console.error('Editing rating error:', err);
+    } finally {
+      setRatingLoading(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen font-sans bg-gray-100">
       {/* Sidebar */}
@@ -1091,7 +1162,8 @@ export default function ResidentDashboard() {
                               onClick={() => setRatingModal({ 
                                 open: true, 
                                 requestId: service._id, 
-                                requestCategory: service.category 
+                                requestCategory: service.category,
+                                existingRating: service.rating
                               })}
                               className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
                             >
@@ -1536,18 +1608,32 @@ export default function ResidentDashboard() {
                         {service.status === 'completed' && service.userId === user._id && service.completedBy && (
                           <div className="mt-2">
                             {service.rating && service.rating.stars ? (
-                              <RatingDisplay 
-                                rating={service.rating} 
-                                compact={true}
-                                showReview={false}
-                                showMetadata={false}
-                              />
+                              <>
+                                <RatingDisplay 
+                                  rating={service.rating} 
+                                  compact={true}
+                                  showReview={false}
+                                  showMetadata={false}
+                                />
+                                <button
+                                  onClick={() => setRatingModal({ 
+                                    open: true, 
+                                    requestId: service._id, 
+                                    requestCategory: service.category,
+                                    existingRating: service.rating
+                                  })}
+                                  className="text-sm text-blue-600 hover:text-blue-700 font-medium ml-2"
+                                >
+                                  Edit Rating
+                                </button>
+                              </>
                             ) : (
                               <button
                                 onClick={() => setRatingModal({ 
                                   open: true, 
                                   requestId: service._id, 
-                                  requestCategory: service.category 
+                                  requestCategory: service.category,
+                                  existingRating: null
                                 })}
                                 className="text-sm text-orange-600 hover:text-orange-700 font-medium"
                               >
@@ -1600,10 +1686,14 @@ export default function ResidentDashboard() {
       {/* Rating Modal */}
       <RatingModal
         open={ratingModal.open}
-        onClose={() => setRatingModal({ open: false, requestId: null, requestCategory: null })}
+        onClose={() => setRatingModal({ open: false, requestId: null, requestCategory: null, existingRating: null })}
         requestId={ratingModal.requestId}
         requestCategory={ratingModal.requestCategory}
+        existingRating={ratingModal.existingRating || null}
         onRated={refreshRequests}
+        onEditRated={refreshRequests}
+        loading={ratingLoading}
+        error={ratingError}
       />
     </div>
   );

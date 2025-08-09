@@ -19,6 +19,7 @@ import {
   Eye
 } from 'lucide-react';
 import config from '../config/config';
+import RatingModal from './RatingModal';
 
 export default function UserProfile() {
   const [user, setUser] = useState(null);
@@ -33,6 +34,7 @@ export default function UserProfile() {
   // Stats state
   const [stats, setStats] = useState({ posted: 0, solved: 0, helped: 0 });
   const [ratingStats, setRatingStats] = useState(null);
+  const [ratingModal, setRatingModal] = useState({ open: false, existingRating: null });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -380,6 +382,14 @@ export default function UserProfile() {
                 </button>
               </div>
             )}
+            {user && (
+              <button
+                className="text-blue-600 hover:underline ml-2"
+                onClick={() => setRatingModal({ open: true, existingRating: ratingStats })}
+              >
+                Edit My Rating
+              </button>
+            )}
           </div>
 
           {/* Profile Content */}
@@ -706,6 +716,12 @@ export default function UserProfile() {
           </div>
         </div>
       </div>
+      <RatingModal
+        open={ratingModal.open}
+        onClose={() => setRatingModal({ open: false, existingRating: null })}
+        existingRating={ratingModal.existingRating}
+        onRated={() => fetchUserRatingStats(user._id || user.id)}
+      />
     </div>
   );
 } 
