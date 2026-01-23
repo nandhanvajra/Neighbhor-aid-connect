@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const Rating = require('../models/ratingSchema');
 const Request = require('../models/requestSchema');
@@ -12,16 +13,16 @@ router.post('/', auth, async (req, res) => {
 
     // Validate required fields
     if (!requestId || !stars || !category) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Request ID, stars, and category are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Request ID, stars, and category are required'
       });
     }
 
     if (stars < 1 || stars > 5) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Rating must be between 1 and 5' 
+      return res.status(400).json({
+        success: false,
+        message: 'Rating must be between 1 and 5'
       });
     }
 
@@ -31,46 +32,46 @@ router.post('/', auth, async (req, res) => {
       .populate('completedBy', 'name');
 
     if (!request) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Request not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Request not found'
       });
     }
 
     // Check if request is completed
     if (request.status !== 'completed') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Can only rate completed requests' 
+      return res.status(400).json({
+        success: false,
+        message: 'Can only rate completed requests'
       });
     }
 
     // Check if user is the one who posted the request
     if (request.userId._id.toString() !== req.user.userId) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Only the request owner can rate the helper' 
+      return res.status(403).json({
+        success: false,
+        message: 'Only the request owner can rate the helper'
       });
     }
 
     // Check if already rated
-    const existingRating = await Rating.findOne({ 
-      requestId, 
-      raterId: req.user.userId 
+    const existingRating = await Rating.findOne({
+      requestId,
+      raterId: req.user.userId
     });
 
     if (existingRating) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'You have already rated this request' 
+      return res.status(400).json({
+        success: false,
+        message: 'You have already rated this request'
       });
     }
 
     // Check if trying to rate yourself
     if (request.completedBy && request.completedBy._id.toString() === req.user.userId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot rate your own work' 
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot rate your own work'
       });
     }
 
@@ -127,18 +128,18 @@ router.post('/', auth, async (req, res) => {
       });
     }
 
-    res.status(201).json({ 
-      success: true, 
-      message: 'Rating submitted successfully', 
-      rating: newRating 
+    res.status(201).json({
+      success: true,
+      message: 'Rating submitted successfully',
+      rating: newRating
     });
 
   } catch (err) {
     console.error('Submit rating error:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error', 
-      error: err.message 
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: err.message
     });
   }
 });
@@ -174,10 +175,10 @@ router.get('/user/:userId', async (req, res) => {
 
   } catch (err) {
     console.error('Get user ratings error:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error', 
-      error: err.message 
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: err.message
     });
   }
 });
@@ -204,10 +205,10 @@ router.get('/user/:userId/stats', async (req, res) => {
 
   } catch (err) {
     console.error('Get user rating stats error:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error', 
-      error: err.message 
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: err.message
     });
   }
 });
@@ -222,9 +223,9 @@ router.get('/request/:requestId', auth, async (req, res) => {
       .populate('ratedUserId', 'name');
 
     if (!rating) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Rating not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Rating not found'
       });
     }
 
@@ -235,10 +236,10 @@ router.get('/request/:requestId', auth, async (req, res) => {
 
   } catch (err) {
     console.error('Get request rating error:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error', 
-      error: err.message 
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: err.message
     });
   }
 });
@@ -249,29 +250,36 @@ router.put('/:ratingId', auth, async (req, res) => {
     const { ratingId } = req.params;
     const { stars, review, qualityOfWork, communication, professionalism } = req.body;
 
+    if (!mongoose.Types.ObjectId.isValid(ratingId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid rating ID'
+      });
+    }
+
     const rating = await Rating.findById(ratingId);
 
     if (!rating) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Rating not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Rating not found'
       });
     }
 
     // Check if user is the original rater
     if (rating.raterId.toString() !== req.user.userId) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Not authorized to update this rating' 
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this rating'
       });
     }
 
     // Update rating fields
     if (stars !== undefined) {
       if (stars < 1 || stars > 5) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Rating must be between 1 and 5' 
+        return res.status(400).json({
+          success: false,
+          message: 'Rating must be between 1 and 5'
         });
       }
       rating.stars = stars;
@@ -300,7 +308,7 @@ router.put('/:ratingId', auth, async (req, res) => {
       const allRatings = await Rating.find({ ratedUserId: rating.ratedUserId });
       const totalRatings = allRatings.length;
       const averageRating = allRatings.reduce((sum, r) => sum + r.stars, 0) / totalRatings;
-      
+
       helper.rating.average = Math.round(averageRating * 100) / 100;
       helper.rating.totalRatings = totalRatings;
       await helper.save();
@@ -327,10 +335,10 @@ router.put('/:ratingId', auth, async (req, res) => {
 
   } catch (err) {
     console.error('Update rating error:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error', 
-      error: err.message 
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: err.message
     });
   }
 });
@@ -343,17 +351,17 @@ router.delete('/:ratingId', auth, async (req, res) => {
     const rating = await Rating.findById(ratingId);
 
     if (!rating) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Rating not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Rating not found'
       });
     }
 
     // Check if user is the original rater
     if (rating.raterId.toString() !== req.user.userId) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Not authorized to delete this rating' 
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this rating'
       });
     }
 
@@ -369,10 +377,10 @@ router.delete('/:ratingId', auth, async (req, res) => {
     if (helper) {
       const allRatings = await Rating.find({ ratedUserId: rating.ratedUserId });
       const totalRatings = allRatings.length;
-      const averageRating = totalRatings > 0 
-        ? allRatings.reduce((sum, r) => sum + r.stars, 0) / totalRatings 
+      const averageRating = totalRatings > 0
+        ? allRatings.reduce((sum, r) => sum + r.stars, 0) / totalRatings
         : 0;
-      
+
       helper.rating.average = Math.round(averageRating * 100) / 100;
       helper.rating.totalRatings = totalRatings;
       await helper.save();
@@ -387,10 +395,10 @@ router.delete('/:ratingId', auth, async (req, res) => {
 
   } catch (err) {
     console.error('Delete rating error:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error', 
-      error: err.message 
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: err.message
     });
   }
 });
@@ -403,17 +411,17 @@ router.post('/:ratingId/helpful', auth, async (req, res) => {
     const rating = await Rating.findById(ratingId);
 
     if (!rating) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Rating not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Rating not found'
       });
     }
 
     // Check if user is not the rater (can't mark own rating as helpful)
     if (rating.raterId.toString() === req.user.userId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot mark your own rating as helpful' 
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot mark your own rating as helpful'
       });
     }
 
@@ -428,10 +436,10 @@ router.post('/:ratingId/helpful', auth, async (req, res) => {
 
   } catch (err) {
     console.error('Mark rating helpful error:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error', 
-      error: err.message 
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: err.message
     });
   }
 });

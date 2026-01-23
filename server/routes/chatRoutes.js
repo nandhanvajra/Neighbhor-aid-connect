@@ -23,7 +23,7 @@ router.post('/create', auth, async (req, res) => {
   try {
     // Check if chat already exists between these users
     let chat = await Chat.findOne({
-      participants: { 
+      participants: {
         $all: [participant1, participant2],
         $size: 2
       }
@@ -54,7 +54,7 @@ router.get('/:chatId', auth, async (req, res) => {
   try {
     const chat = await Chat.findById(chatId)
       .populate('participants', 'name email');
-    
+
     if (!chat) {
       return res.status(404).json({ message: 'Chat not found' });
     }
@@ -125,28 +125,36 @@ router.post('/:chatId/messages', auth, async (req, res) => {
     // Check if there's a completed request between these two users
     const Request = require('../models/requestSchema');
     const otherParticipant = chat.participants.find(p => p.toString() !== req.user.userId);
-    
+
     if (otherParticipant) {
-      const completedRequest = await Request.findOne({
-        status: 'completed',
+      // Check if there is an ACTIVE request (pending or in-progress)
+      const activeRequest = await Request.findOne({
+        status: { $in: ['pending', 'in-progress'] },
         $or: [
           { userId: req.user.userId, completedBy: otherParticipant },
           { userId: otherParticipant, completedBy: req.user.userId }
         ]
       });
 
-      if (completedRequest) {
-        return res.status(403).json({ 
-          message: 'Cannot send messages. The service request has been completed.' 
+      // Only check for blocking if there is NO active request
+      if (!activeRequest) {
+        const completedRequest = await Request.findOne({
+          status: 'completed',
+          $or: [
+            { userId: req.user.userId, completedBy: otherParticipant },
+            { userId: otherParticipant, completedBy: req.user.userId }
+          ]
         });
+
+        if (completedRequest) {
+          return res.status(403).json({
+            message: 'Cannot send messages. The service request has been completed.'
+          });
+        }
       }
     }
 
-    if (completedRequest) {
-      return res.status(403).json({ 
-        message: 'Cannot send messages. The service request has been completed.' 
-      });
-    }
+
 
     const message = await Message.create({
       chatId,

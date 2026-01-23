@@ -57,13 +57,13 @@ export default function UserRatingsPage() {
       }
 
       const data = await response.json();
-      
+
       if (currentPage === 1) {
         setRatings(data.ratings);
       } else {
         setRatings(prev => [...prev, ...data.ratings]);
       }
-      
+
       setHasMore(data.pagination.hasMore);
     } catch (err) {
       setError(err.message);
@@ -106,8 +106,8 @@ export default function UserRatingsPage() {
 
       if (response.ok) {
         // Update the rating in the list
-        setRatings(prev => prev.map(rating => 
-          rating._id === ratingId 
+        setRatings(prev => prev.map(rating =>
+          rating._id === ratingId
             ? { ...rating, helpfulCount: (rating.helpfulCount || 0) + 1 }
             : rating
         ));
@@ -190,11 +190,10 @@ export default function UserRatingsPage() {
               <span className="text-sm font-medium text-gray-700">Sort by:</span>
               <button
                 onClick={() => handleSortChange('createdAt')}
-                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${
-                  sortBy === 'createdAt' 
-                    ? 'bg-orange-100 text-orange-700' 
+                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${sortBy === 'createdAt'
+                    ? 'bg-orange-100 text-orange-700'
                     : 'text-gray-600 hover:bg-gray-100'
-                }`}
+                  }`}
               >
                 <span>Date</span>
                 {sortBy === 'createdAt' && (
@@ -203,11 +202,10 @@ export default function UserRatingsPage() {
               </button>
               <button
                 onClick={() => handleSortChange('stars')}
-                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${
-                  sortBy === 'stars' 
-                    ? 'bg-orange-100 text-orange-700' 
+                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${sortBy === 'stars'
+                    ? 'bg-orange-100 text-orange-700'
                     : 'text-gray-600 hover:bg-gray-100'
-                }`}
+                  }`}
               >
                 <Star size={14} />
                 <span>Rating</span>
@@ -217,11 +215,10 @@ export default function UserRatingsPage() {
               </button>
               <button
                 onClick={() => handleSortChange('helpfulCount')}
-                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${
-                  sortBy === 'helpfulCount' 
-                    ? 'bg-orange-100 text-orange-700' 
+                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${sortBy === 'helpfulCount'
+                    ? 'bg-orange-100 text-orange-700'
                     : 'text-gray-600 hover:bg-gray-100'
-                }`}
+                  }`}
               >
                 <MessageSquare size={14} />
                 <span>Helpful</span>
@@ -251,7 +248,7 @@ export default function UserRatingsPage() {
             ratings.map((rating) => (
               <div key={rating._id} className="mb-4">
                 <RatingDisplay rating={rating} />
-                {rating.raterId === userId && (
+                {(getCurrentUser() && rating.raterId && (rating.raterId._id === getCurrentUser()._id || rating.raterId === getCurrentUser()._id)) && (
                   <button
                     className="text-blue-600 hover:underline ml-2"
                     onClick={() => setRatingModal({ open: true, existingRating: rating })}

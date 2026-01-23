@@ -17,7 +17,7 @@ export default function ChatApplication() {
   const [error, setError] = useState(null);
   const [isRequestCompleted, setIsRequestCompleted] = useState(false);
   const messagesEndRef = useRef(null);
-  
+
   // Track processed socket messages to prevent duplicates
   const processedMessages = useRef(new Set());
 
@@ -30,12 +30,12 @@ export default function ChatApplication() {
   useEffect(() => {
     console.log("Attempting to get user from localStorage");
     const storedUser = localStorage.getItem('user');
-    
+
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
         console.log("Found user in localStorage:", parsedUser);
-        
+
         if (!parsedUser || !parsedUser._id) {
           console.error('Invalid user data (missing _id):', parsedUser);
           setError('Invalid user data. Please log in again.');
@@ -69,7 +69,7 @@ export default function ChatApplication() {
       setError("No chat ID or user found. Please navigate to a valid chat room.");
       return;
     }
-    
+
     console.log("Setting up chat for chatid:", chatid, "with user:", user._id);
     setLoading(true);
     setError(null); // Clear any previous errors
@@ -109,14 +109,14 @@ export default function ChatApplication() {
             'Authorization': `Bearer ${token}`
           }
         });
-        
+
         if (!messagesResponse.ok) {
           throw new Error(`Failed to load messages: ${messagesResponse.status}`);
         }
 
         const messagesData = await messagesResponse.json();
         console.log("Received messages:", messagesData);
-        
+
         if (Array.isArray(messagesData)) {
           setMessages(messagesData);
           // Store message IDs to prevent duplicates
@@ -130,7 +130,7 @@ export default function ChatApplication() {
 
         // Store the actual chat ID for sending messages
         setChatId(chatData._id);
-        
+
         // Check if there's a completed request between these two users
         const checkRequestStatus = async () => {
           try {
@@ -139,19 +139,32 @@ export default function ChatApplication() {
                 'Authorization': `Bearer ${token}`
               }
             });
-            
+
             if (requestsResponse.ok) {
               const requestsData = await requestsResponse.json();
               if (requestsData.requests && Array.isArray(requestsData.requests)) {
-                // Find if there's a completed request between current user and chat partner
-                const completedRequest = requestsData.requests.find(req => 
-                  req.status === 'completed' && 
+                // Check for any ACTIVE request (pending or in-progress)
+                // If there is an active request, we should enable chat regardless of past completed requests
+                const activeRequest = requestsData.requests.find(req =>
+                  (req.status === 'pending' || req.status === 'in-progress') &&
                   ((req.userId === user._id && req.completedBy === chatid) ||
-                   (req.userId === chatid && req.completedBy === user._id))
+                    (req.userId === chatid && req.completedBy === user._id))
                 );
-                
-                if (completedRequest) {
-                  setIsRequestCompleted(true);
+
+                if (activeRequest) {
+                  // Active request exists, ensure chat is enabled
+                  setIsRequestCompleted(false);
+                } else {
+                  // If no active request, check if there's a completed request
+                  const completedRequest = requestsData.requests.find(req =>
+                    req.status === 'completed' &&
+                    ((req.userId === user._id && req.completedBy === chatid) ||
+                      (req.userId === chatid && req.completedBy === user._id))
+                  );
+
+                  if (completedRequest) {
+                    setIsRequestCompleted(true);
+                  }
                 }
               }
             }
@@ -160,7 +173,7 @@ export default function ChatApplication() {
             // Don't block chat if this check fails
           }
         };
-        
+
         checkRequestStatus();
         setError(null); // Clear any errors on success
       } catch (err) {
@@ -177,31 +190,31 @@ export default function ChatApplication() {
   // Socket.io setup with duplicate prevention
   useEffect(() => {
     if (!chatId) return;
-    
+
     console.log(`Joining socket room: ${chatId}`);
     // Join the chat room
     socket.emit('joinRoom', chatId);
-    
+
     // Handle incoming messages with duplicate prevention
     const handleReceiveMessage = (msg) => {
       console.log("Received message via socket:", msg);
-      
+
       // Skip if we've already processed this message
       if (msg._id && processedMessages.current.has(msg._id)) {
         console.log("Skipping duplicate message:", msg._id);
         return;
       }
-      
+
       // Add to processed set
       if (msg._id) processedMessages.current.add(msg._id);
-      
+
       setMessages(prev => {
         // Check if this is replacing a pending message
-        const pendingMsgIndex = prev.findIndex(m => 
-          m.pending && m.text === msg.text && 
+        const pendingMsgIndex = prev.findIndex(m =>
+          m.pending && m.text === msg.text &&
           (m.sender?._id === msg.sender?._id || m.sender === msg.sender?._id)
         );
-        
+
         if (pendingMsgIndex >= 0) {
           // Replace pending message
           const newMessages = [...prev];
@@ -213,10 +226,10 @@ export default function ChatApplication() {
         }
       });
     };
-    
+
     socket.on('receiveMessage', handleReceiveMessage);
     console.log("Socket listener set up for 'receiveMessage' events");
-    
+
     // Cleanup function
     return () => {
       console.log(`Leaving socket room: ${chatId}`);
@@ -233,7 +246,7 @@ export default function ChatApplication() {
   // Format timestamp for display
   const formatTime = (timestamp) => {
     if (!timestamp) return '';
-    
+
     try {
       const date = new Date(timestamp);
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -245,9 +258,9 @@ export default function ChatApplication() {
   // Handle sending messages
   const sendMessage = async (e) => {
     e?.preventDefault();
-    
+
     if (!newMsg.trim()) return;
-    
+
     if (!chatId) {
       setError('No chat ID found. Please navigate to a valid chat room.');
       console.error('Missing chatId', { chatId });
@@ -259,9 +272,9 @@ export default function ChatApplication() {
       console.error('Missing user', { user });
       return;
     }
-    
+
     console.log("Sending message:", { chatId, userId: user._id, text: newMsg });
-    
+
     // Optimistically add message to UI
     const tempId = `temp_${Date.now()}`;
     const tempMessage = {
@@ -274,10 +287,10 @@ export default function ChatApplication() {
       createdAt: new Date().toISOString(),
       pending: true
     };
-    
+
     setMessages(prev => [...prev, tempMessage]);
     setNewMsg('');
-    
+
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -286,34 +299,34 @@ export default function ChatApplication() {
 
       const response = await fetch(`${config.apiBaseUrl}/api/chats/${chatId}/messages`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ 
-          text: newMsg 
+        body: JSON.stringify({
+          text: newMsg
         })
       });
-      
+
       console.log("Send message response status:", response.status);
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || `Server error: ${response.status}`);
       }
-      
+
       // Server will emit this via socket.io, no need to update state directly
       // Just capture the ID to prevent duplicates
       const message = await response.json();
       if (message._id) processedMessages.current.add(message._id);
-      
+
       // Clear any errors on successful send
       setError(null);
-      
+
     } catch (err) {
       console.error('Failed to send message:', err);
       setError(`Failed to send message: ${err.message}`);
-      
+
       // Remove the pending message on error
       setMessages(prev => prev.filter(msg => msg._id !== tempId));
     }
@@ -349,7 +362,7 @@ export default function ChatApplication() {
       {error && (
         <div className="mx-4 mt-2 bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded flex justify-between items-center">
           <span>{error}</span>
-          <button 
+          <button
             className="ml-2 text-sm underline"
             onClick={() => setError(null)}
           >
@@ -383,21 +396,20 @@ export default function ChatApplication() {
             ) : (
               messages.map((msg, index) => {
                 const isCurrentUser = user && msg.sender && (
-                  msg.sender._id === user._id || 
+                  msg.sender._id === user._id ||
                   msg.sender === user._id
                 );
-                
+
                 return (
-                  <div 
-                    key={msg._id || index} 
+                  <div
+                    key={msg._id || index}
                     className={`mb-3 flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div 
-                      className={`px-4 py-2 rounded-lg max-w-xs md:max-w-md lg:max-w-lg break-words ${
-                        isCurrentUser 
-                          ? 'bg-orange-500 text-white rounded-br-none' 
+                    <div
+                      className={`px-4 py-2 rounded-lg max-w-xs md:max-w-md lg:max-w-lg break-words ${isCurrentUser
+                          ? 'bg-orange-500 text-white rounded-br-none'
                           : 'bg-gray-200 text-gray-800 rounded-bl-none'
-                      } ${msg.pending ? 'opacity-60' : ''}`}
+                        } ${msg.pending ? 'opacity-60' : ''}`}
                     >
                       {!isCurrentUser && (
                         <div className="font-medium text-xs mb-1">
@@ -423,7 +435,7 @@ export default function ChatApplication() {
             )}
             <div ref={messagesEndRef} />
           </div>
-          
+
           {/* Message input */}
           <div className="p-3 border-t">
             {isRequestCompleted && (
@@ -451,7 +463,7 @@ export default function ChatApplication() {
                 </svg>
               </button>
             </form>
-            
+
             {!user && (
               <p className="text-sm text-center text-gray-500 mt-2">
                 You need to be logged in to send messages.
