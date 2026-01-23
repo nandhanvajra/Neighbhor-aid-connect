@@ -9,11 +9,17 @@ router.post('/', auth, async (req, res) => {
   console.log('Received request creation with data:', req.body);
 
   try {
+    // Check if user is a worker - workers cannot create requests
+    const user = await User.findById(req.user.userId).select('name userType blockedUsers');
+    if (user.userType === 'worker') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Workers cannot create help requests. Only residents can post requests.' 
+      });
+    }
+
     const { category, description, urgency, preferredTime, addressNote } = req.body;
     console.log(category)
-    
-    // Get user details for notifications
-    const user = await User.findById(req.user.userId).select('name');
     
     // Create new request
     const newRequest = new Request({
@@ -75,21 +81,81 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
+// Helper function to map worker profession to request category
+const mapWorkerProfessionToCategory = (profession) => {
+  const mapping = {
+    'electrician': 'electrical',
+    'plumber': 'plumbing',
+    'maid': 'maid',
+    'cook': 'cook',
+    'cleaner': 'cleaning',
+    'gardener': 'gardening',
+    'security': 'security',
+    'maintenance': 'maintenance',
+    'carpenter': 'maintenance', // carpenters can handle maintenance requests
+    'other': null // Workers with "other" profession should not see any requests (too vague)
+  };
+  return mapping[profession] !== undefined ? mapping[profession] : null;
+};
+
 // GET /api/requests - Get all requests for the logged in user
 router.get('/all', auth, async (req, res) => {
     try {
-        const requests = await Request.find()
-            .populate('userId', 'name email job role')
-            .populate('completedBy', 'name email job role');
+        // Get current user to check if they're a worker and get blocked users
+        const currentUser = await User.findById(req.user.userId).select('userType job blockedUsers');
+        
+        let query = {};
+        
+        // If user is a worker, filter requests by their profession
+        if (currentUser.userType === 'worker') {
+          const category = mapWorkerProfessionToCategory(currentUser.job);
+          if (category) {
+            query.category = category;
+          } else {
+            // If profession doesn't map to a category, return empty array
+            return res.status(200).json({ success: true, requests: [] });
+          }
+        }
+        
+        const requests = await Request.find(query)
+            .populate('userId', 'name email job role userType blockedUsers')
+            .populate('completedBy', 'name email job role userType blockedUsers');
+        
+        // Filter out requests from blocked users or where requester has blocked current user
+        const filteredRequests = requests.filter(request => {
+          if (!request.userId) return false;
+          
+          const requesterId = request.userId._id ? request.userId._id.toString() : request.userId.toString();
+          const currentUserId = req.user.userId.toString();
+          
+          // If current user has blocked the requester, don't show their requests
+          if (currentUser.blockedUsers && currentUser.blockedUsers.length > 0) {
+            const blockedIds = currentUser.blockedUsers.map(id => id.toString());
+            if (blockedIds.includes(requesterId)) {
+              return false;
+            }
+          }
+          
+          // If requester has blocked current user, don't show their requests
+          if (request.userId.blockedUsers && request.userId.blockedUsers.length > 0) {
+            const requesterBlockedIds = request.userId.blockedUsers.map(id => id.toString());
+            if (requesterBlockedIds.includes(currentUserId)) {
+              return false;
+            }
+          }
+          
+          return true;
+        });
         
         // Transform the data to include userName and ensure userId is a string
-        const requestsWithUserNames = requests.map(request => ({
+        const requestsWithUserNames = filteredRequests.map(request => ({
             ...request.toObject(),
             userId: request.userId ? request.userId._id.toString() : request.userId,
             userName: request.userId ? request.userId.name : 'Unknown User',
             userEmail: request.userId ? request.userId.email : '',
             userJob: request.userId ? request.userId.job : '',
             userRole: request.userId ? request.userId.role : '',
+            userType: request.userId ? request.userId.userType : '',
             completedBy: request.completedBy ? request.completedBy._id.toString() : request.completedBy,
             completedByName: request.completedBy ? request.completedBy.name : 'Volunteer'
         }));

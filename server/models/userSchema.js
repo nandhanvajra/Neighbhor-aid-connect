@@ -8,6 +8,11 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true, minlength: 4 },
     address: { type: String, required: true, trim: true },
     job: { type: String, required: true, trim: true },
+    userType: { 
+      type: String, 
+      enum: ['resident', 'worker'],
+      required: true
+    },
     isAdmin: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now },
     role: { 
@@ -38,6 +43,11 @@ const userSchema = new mongoose.Schema({
       publicProfile: { type: Boolean, default: true }
     },
     requestPreferences: [{ type: String, trim: true }],
+    // Blocked users - users that this user has blocked
+    blockedUsers: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }],
     // Enhanced rating system
     rating: { 
       average: { type: Number, default: 0, min: 0, max: 5 },

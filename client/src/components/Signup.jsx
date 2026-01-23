@@ -21,12 +21,47 @@ export default function Signup() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [address, setAddress] = useState('');
+  const [userType, setUserType] = useState(''); // 'resident' or 'worker'
   const [job, setJob] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+
+  // Profession options based on user type
+  const residentProfessions = [
+    { value: 'lawyer', label: 'Lawyer' },
+    { value: 'teacher', label: 'Teacher' },
+    { value: 'engineer', label: 'Engineer' },
+    { value: 'doctor', label: 'Doctor' },
+    { value: 'nurse', label: 'Nurse' },
+    { value: 'accountant', label: 'Accountant' },
+    { value: 'designer', label: 'Designer' },
+    { value: 'manager', label: 'Manager' },
+    { value: 'sales', label: 'Sales Representative' },
+    { value: 'marketing', label: 'Marketing Specialist' }
+  ];
+
+  const workerProfessions = [
+    { value: 'electrician', label: 'Electrician' },
+    { value: 'plumber', label: 'Plumber' },
+    { value: 'maid', label: 'Maid' },
+    { value: 'cook', label: 'Cook' },
+    { value: 'cleaner', label: 'Cleaner' },
+    { value: 'gardener', label: 'Gardener' },
+    { value: 'security', label: 'Security Guard' },
+    { value: 'maintenance', label: 'Maintenance Worker' },
+    { value: 'carpenter', label: 'Carpenter' },
+    { value: 'other', label: 'Other' }
+  ];
+
+  // Get current profession options based on user type
+  const getProfessionOptions = () => {
+    if (userType === 'resident') return residentProfessions;
+    if (userType === 'worker') return workerProfessions;
+    return [];
+  };
 
   const handleSignup = async (e) => {
     e.preventDefault();
@@ -36,8 +71,13 @@ export default function Signup() {
       return;
     }
 
+    if (!userType) {
+      setError('Please select whether you are a resident or a worker');
+      return;
+    }
+
     if (!job) {
-      setError('Please select a job');
+      setError('Please select a profession');
       return;
     }
 
@@ -50,7 +90,7 @@ export default function Signup() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, email, password, address, job }),
+        body: JSON.stringify({ name, email, password, address, job, userType }),
       });
 
       const data = await response.json();
@@ -158,29 +198,69 @@ export default function Signup() {
             </div>
 
             <div className="mb-6">
-              <label htmlFor="job" className="block text-gray-700 text-sm font-medium mb-2">
-                Job/Profession
+              <label className="block text-gray-700 text-sm font-medium mb-3">
+                I am a:
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Briefcase size={18} className="text-gray-400" />
-                </div>
-                <select
-                  id="job"
-                  className="pl-10 w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  value={job}
-                  onChange={(e) => setJob(e.target.value)}
-                  required
-                >
-                  <option value="">Select your job/profession</option>
-                  {config.jobs.map(jobOption => (
-                    <option key={jobOption.value} value={jobOption.value}>
-                      {jobOption.label}
-                    </option>
-                  ))}
-                </select>
+              <div className="flex gap-6">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="userType"
+                    value="resident"
+                    checked={userType === 'resident'}
+                    onChange={(e) => {
+                      setUserType(e.target.value);
+                      setJob(''); // Reset job when user type changes
+                    }}
+                    className="mr-2 text-orange-500 focus:ring-orange-500"
+                    required
+                  />
+                  <span className="text-gray-700">Resident</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="userType"
+                    value="worker"
+                    checked={userType === 'worker'}
+                    onChange={(e) => {
+                      setUserType(e.target.value);
+                      setJob(''); // Reset job when user type changes
+                    }}
+                    className="mr-2 text-orange-500 focus:ring-orange-500"
+                    required
+                  />
+                  <span className="text-gray-700">Worker</span>
+                </label>
               </div>
             </div>
+
+            {userType && (
+              <div className="mb-6">
+                <label htmlFor="job" className="block text-gray-700 text-sm font-medium mb-2">
+                  {userType === 'resident' ? 'Profession' : 'Service Type'}
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Briefcase size={18} className="text-gray-400" />
+                  </div>
+                  <select
+                    id="job"
+                    className="pl-10 w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    value={job}
+                    onChange={(e) => setJob(e.target.value)}
+                    required
+                  >
+                    <option value="">Select {userType === 'resident' ? 'your profession' : 'your service type'}</option>
+                    {getProfessionOptions().map(jobOption => (
+                      <option key={jobOption.value} value={jobOption.value}>
+                        {jobOption.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
 
             <div className="mb-6">
               <label htmlFor="password" className="block text-gray-700 text-sm font-medium mb-2">

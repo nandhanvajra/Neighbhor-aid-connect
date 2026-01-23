@@ -15,6 +15,7 @@ export default function ChatApplication() {
   const [chatId, setChatId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isRequestCompleted, setIsRequestCompleted] = useState(false);
   const messagesEndRef = useRef(null);
   
   // Track processed socket messages to prevent duplicates
@@ -129,6 +130,38 @@ export default function ChatApplication() {
 
         // Store the actual chat ID for sending messages
         setChatId(chatData._id);
+        
+        // Check if there's a completed request between these two users
+        const checkRequestStatus = async () => {
+          try {
+            const requestsResponse = await fetch(`${config.apiBaseUrl}/api/requests/all`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (requestsResponse.ok) {
+              const requestsData = await requestsResponse.json();
+              if (requestsData.requests && Array.isArray(requestsData.requests)) {
+                // Find if there's a completed request between current user and chat partner
+                const completedRequest = requestsData.requests.find(req => 
+                  req.status === 'completed' && 
+                  ((req.userId === user._id && req.completedBy === chatid) ||
+                   (req.userId === chatid && req.completedBy === user._id))
+                );
+                
+                if (completedRequest) {
+                  setIsRequestCompleted(true);
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Error checking request status:', err);
+            // Don't block chat if this check fails
+          }
+        };
+        
+        checkRequestStatus();
         setError(null); // Clear any errors on success
       } catch (err) {
         console.error('Error setting up chat:', err);
@@ -393,20 +426,25 @@ export default function ChatApplication() {
           
           {/* Message input */}
           <div className="p-3 border-t">
+            {isRequestCompleted && (
+              <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800 text-center">
+                This service request has been completed. You can view the chat history but cannot send new messages.
+              </div>
+            )}
             <form onSubmit={sendMessage} className="flex items-center">
               <input
                 type="text"
                 value={newMsg}
                 onChange={(e) => setNewMsg(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className="flex-1 border border-gray-300 rounded-l-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                placeholder="Type a message..."
-                disabled={loading || !user}
+                className="flex-1 border border-gray-300 rounded-l-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                placeholder={isRequestCompleted ? "Service completed - messages disabled" : "Type a message..."}
+                disabled={loading || !user || isRequestCompleted}
               />
               <button
                 type="submit"
                 className="bg-orange-500 text-white rounded-r-full px-6 py-2 hover:bg-orange-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-                disabled={!newMsg.trim() || loading || !user}
+                disabled={!newMsg.trim() || loading || !user || isRequestCompleted}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import config from '../config/config';
@@ -14,6 +14,27 @@ export default function PostRequest() {
   });
   
   const [message, setMessage] = useState({ text: '', type: '' });
+
+  // Check if user is a worker and redirect them
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        if (user.userType === 'worker') {
+          setMessage({ 
+            text: 'Workers cannot create help requests. Only residents can post requests. Redirecting to dashboard...', 
+            type: 'error' 
+          });
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 3000);
+        }
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+    }
+  }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -47,6 +68,34 @@ export default function PostRequest() {
       });
     }
   };
+
+  // Get user data to check if worker
+  const userData = localStorage.getItem('user');
+  let user = null;
+  try {
+    user = userData ? JSON.parse(userData) : null;
+  } catch (error) {
+    console.error('Error parsing user data:', error);
+  }
+
+  // If worker, show message and don't render form
+  if (user?.userType === 'worker') {
+    return (
+      <div className="max-w-2xl mx-auto p-6 bg-white shadow rounded mt-8 font-sans">
+        <h2 className="text-3xl font-bold text-orange-500 mb-6 text-center">Post Help Request</h2>
+        <div className="mb-4 p-4 rounded bg-red-100 text-red-700 text-center">
+          <p className="font-semibold mb-2">Access Denied</p>
+          <p>Workers cannot create help requests. Only residents can post requests.</p>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="mt-4 px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
+          >
+            Go to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white shadow rounded mt-8 font-sans">

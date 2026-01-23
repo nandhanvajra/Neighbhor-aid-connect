@@ -17,7 +17,9 @@ import {
   Phone,
   Mail,
   Hammer,
-  Settings
+  Settings,
+  Ban,
+  UserCheck
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import UserList from './UserList';
@@ -171,6 +173,8 @@ export default function ResidentDashboard() {
   const [selectedRole, setSelectedRole] = useState('all');
   const [ratingLoading, setRatingLoading] = useState(false);
   const [ratingError, setRatingError] = useState('');
+  const [blockedUsers, setBlockedUsers] = useState([]);
+  const [staffSearchTerm, setStaffSearchTerm] = useState('');
 
   // Helper function to get user ID consistently
   const getUserId = () => user?._id || user?.id;
@@ -360,6 +364,28 @@ export default function ResidentDashboard() {
         .catch(err => {
           console.error('Error loading volunteers', err);
           setVolunteers([]);
+        });
+
+      // Fetch blocked users list
+      fetch(`${config.apiBaseUrl}/api/users/blocked/list`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP error! Status: ${res.status}`);
+          }
+          return res.json();
+        })
+        .then(data => {
+          if (data.blockedUsers && Array.isArray(data.blockedUsers)) {
+            setBlockedUsers(data.blockedUsers.map(u => u._id || u.id));
+          }
+        })
+        .catch(err => {
+          console.error('Error loading blocked users', err);
         });
     }
   }, [activeTab, token]);
@@ -695,6 +721,12 @@ export default function ResidentDashboard() {
       return false;
     }
     
+    // If search term is empty, show all requests (that pass other filters)
+    if (!searchTerm || searchTerm.trim() === '') {
+      return true;
+    }
+    
+    // Otherwise, filter by search term
     const searchTermLower = searchTerm.toLowerCase();
     return (
       (request.category && request.category.toLowerCase().includes(searchTermLower)) ||
@@ -705,6 +737,67 @@ export default function ResidentDashboard() {
   });
 
   const navLinks = getNavLinks();
+
+  // Function to handle block/unblock user
+  const handleBlockUser = async (userId, isBlocked) => {
+    if (!token || !user) {
+      alert("You must be logged in to block/unblock users");
+      return;
+    }
+
+    const action = isBlocked ? 'unblock' : 'block';
+    const confirmed = window.confirm(
+      `Are you sure you want to ${action} this user? ${isBlocked ? 'They will be able to see your requests again.' : 'They will not be able to see your requests.'}`
+    );
+    
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(`${config.apiBaseUrl}/api/users/${userId}/${action}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to ${action} user`);
+      }
+
+      const data = await response.json();
+      
+      // Update blocked users list
+      if (isBlocked) {
+        setBlockedUsers(prev => prev.filter(id => id !== userId));
+      } else {
+        setBlockedUsers(prev => [...prev, userId]);
+      }
+
+      // Refresh requests to reflect blocking changes
+      if (activeTab === 'overview' || activeTab === 'requests') {
+        fetch(`${config.apiBaseUrl}/api/requests/all`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.requests && Array.isArray(data.requests)) {
+              setAllRequests(data.requests);
+            }
+          })
+          .catch(err => console.error('Error refreshing requests:', err));
+      }
+
+      alert(`User ${action}ed successfully`);
+    } catch (err) {
+      console.error(`Error ${action}ing user:`, err);
+      alert(`Failed to ${action} user: ${err.message}`);
+    }
+  };
 
   // Function to refresh requests (used after rating)
   const refreshRequests = () => {
@@ -831,7 +924,15 @@ export default function ResidentDashboard() {
             {/* <p className="text-gray-700 mb-6">You have 2 active requests • 1 maid assigned • 3 new messages</p> */}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              {config.quickActions.map(({ label, icon: IconName, link, description }) => {
+              {config.quickActions
+                .filter(action => {
+                  // Hide "Post Help Request" for workers
+                  if (user?.userType === 'worker' && action.label === 'Post Help Request') {
+                    return false;
+                  }
+                  return true;
+                })
+                .map(({ label, icon: IconName, link, description }) => {
                 const iconMap = {
                   'PlusCircle': PlusCircle,
                   'Wrench': Wrench,
@@ -918,7 +1019,25 @@ export default function ResidentDashboard() {
 
             {/* Community Help Requests (exclude completed and in-progress) */}
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">{config.overview.communityRequestsTitle}</h2>
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                {user?.userType === 'worker' 
+                  ? `Requests in Your Field (${user.job || 'Your Service'})` 
+                  : config.overview.communityRequestsTitle}
+              </h2>
+              {user?.userType === 'worker' && (
+                <p className="text-gray-600 mb-4 text-sm">
+                  As a worker, you can only see and resolve requests related to your service field.
+                </p>
+              )}
+              {filteredRequests.filter(request => request.status !== 'completed' && request.status !== 'in-progress').length === 0 ? (
+                <div className="bg-white p-6 rounded-lg shadow text-center">
+                  <p className="text-gray-600">
+                    {user?.userType === 'worker' 
+                      ? 'No requests available in your field at the moment.' 
+                      : config.overview.noRequestsMessage}
+                  </p>
+                </div>
+              ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -989,6 +1108,7 @@ export default function ResidentDashboard() {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
 
             {/* In Progress Tasks Section */}
@@ -1151,13 +1271,22 @@ export default function ResidentDashboard() {
                               <Clock size={16} className="mr-1" />
                               <span>Completed on {new Date(service.updatedAt || service.createdAt).toLocaleDateString()}</span>
                             </div>
-                            {service.completedByName && (
-                              <p className="text-sm text-gray-600">
-                                <span className="font-medium">Helper:</span> {service.completedByName}
+                            {service.completedByName && service.completedBy && (
+                              <p className="text-sm text-gray-600 mb-2">
+                                <span className="font-medium">Helper:</span> <ClickableUserName userId={service.completedBy} userName={service.completedByName} />
                               </p>
                             )}
                           </div>
-                          <div className="text-right">
+                          <div className="text-right flex flex-col gap-2">
+                            {service.completedBy && (
+                              <Link 
+                                to={`/profile/${service.completedBy}`} 
+                                className="inline-flex items-center px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors"
+                              >
+                                <Users size={16} className="mr-2" />
+                                View Profile
+                              </Link>
+                            )}
                             <button
                               onClick={() => setRatingModal({ 
                                 open: true, 
@@ -1201,10 +1330,16 @@ export default function ResidentDashboard() {
                               <Clock size={16} className="mr-1" />
                               <span>Completed on {new Date(service.updatedAt || service.createdAt).toLocaleDateString()}</span>
                             </div>
-                            {service.completedByName && (
-                              <p className="text-sm text-gray-600 mb-2">
-                                <span className="font-medium">Helper:</span> {service.completedByName}
-                              </p>
+                            {service.completedByName && service.completedBy && (
+                              <div className="text-sm text-gray-600 mb-2">
+                                <span className="font-medium">Helper:</span> <ClickableUserName userId={service.completedBy} userName={service.completedByName} />
+                                <Link 
+                                  to={`/profile/${service.completedBy}`} 
+                                  className="ml-2 text-purple-600 hover:text-purple-800 underline text-xs"
+                                >
+                                  View Profile
+                                </Link>
+                              </div>
                             )}
                             {service.rating && (
                               <div className="flex items-center">
@@ -1250,13 +1385,18 @@ export default function ResidentDashboard() {
                 <div className="bg-white p-6 rounded-lg shadow text-center">
                   <AlertTriangle size={32} className="text-orange-500 mx-auto mb-2" />
                   <p className="text-gray-700 mb-4">{config.requests.noRequestsMessage}</p>
-                  <Link 
-                    to="/post-request" 
-                    className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
-                  >
-                    <PlusCircle size={18} className="mr-2" />
-                    {config.requests.createNewRequestText}
-                  </Link>
+                  {user?.userType !== 'worker' && (
+                    <Link 
+                      to="/post-request" 
+                      className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
+                    >
+                      <PlusCircle size={18} className="mr-2" />
+                      {config.requests.createNewRequestText}
+                    </Link>
+                  )}
+                  {user?.userType === 'worker' && (
+                    <p className="text-gray-600 text-sm">As a worker, you can only view and resolve requests in your field.</p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -1279,8 +1419,10 @@ export default function ResidentDashboard() {
                               {request.preferredTime && ` ${config.requests.preferredTimeText} ${request.preferredTime} • `}
                               {request.status === 'in-progress' && request.completedBy ? 
                                 <span className="font-medium text-blue-600"> {config.requests.acceptedByText} <ClickableUserName userId={request.completedBy} userName={request.completedByName || 'Volunteer'} /></span> :
-                                request.status === 'completed' ?
-                                <span className="font-medium text-green-600"> {config.requests.completedText}</span> :
+                                request.status === 'completed' && request.completedBy ?
+                                <span className="font-medium text-green-600"> 
+                                  {config.requests.completedText} by <ClickableUserName userId={request.completedBy} userName={request.completedByName || 'Volunteer'} />
+                                </span> :
                                 <span className="font-medium text-yellow-600"> {config.requests.pendingText}</span>
                               }
                             </p>
@@ -1308,6 +1450,17 @@ export default function ResidentDashboard() {
                             >
                               <MessageCircle size={16} className="mr-2" />
                               {config.requests.chatWithHelperText}
+                            </Link>
+                          )}
+                          
+                          {/* Show profile link for completed requests */}
+                          {request.status === 'completed' && request.completedBy && (
+                            <Link 
+                              to={`/profile/${request.completedBy}`} 
+                              className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors flex items-center"
+                            >
+                              <Users size={16} className="mr-2" />
+                              View Helper Profile
                             </Link>
                           )}
                           
@@ -1343,8 +1496,21 @@ export default function ResidentDashboard() {
           <section>
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Suggested Staff for You</h2>
             
-            {/* Role Filter */}
-            <div className="mb-6">
+            {/* Search and Role Filter */}
+            <div className="mb-6 space-y-4">
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="text"
+                  placeholder="Search by name, skills, or profession..."
+                  value={staffSearchTerm}
+                  onChange={(e) => setStaffSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              </div>
+              
+              {/* Role Filter */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <span className="text-sm font-medium text-gray-700">Filter by Role:</span>
@@ -1358,14 +1524,32 @@ export default function ResidentDashboard() {
                     <option value="volunteer">Volunteer</option>
                     <option value="staff">Staff</option>
                     <option value="admin">Admin</option>
+                    <option value="electrician">Electrician</option>
+                    <option value="plumber">Plumber</option>
+                    <option value="maid">Maid</option>
+                    <option value="cook">Cook</option>
+                    <option value="cleaner">Cleaner</option>
+                    <option value="gardener">Gardener</option>
+                    <option value="security">Security</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="carpenter">Carpenter</option>
+                    <option value="technician">Technician</option>
+                    <option value="manager">Manager</option>
+                    <option value="worker">Worker</option>
                   </select>
                 </div>
                 <div className="text-sm text-gray-600">
                   {(() => {
-                    const filteredCount = volunteers.filter(vol => 
-                      selectedRole === 'all' || vol.role?.toLowerCase() === selectedRole.toLowerCase()
-                    ).length;
-                    return `${filteredCount} ${filteredCount === 1 ? 'member' : 'members'} found`;
+                    const filtered = volunteers.filter(vol => {
+                      const roleMatch = selectedRole === 'all' || vol.role?.toLowerCase() === selectedRole.toLowerCase();
+                      const searchMatch = !staffSearchTerm || 
+                        vol.name?.toLowerCase().includes(staffSearchTerm.toLowerCase()) ||
+                        vol.job?.toLowerCase().includes(staffSearchTerm.toLowerCase()) ||
+                        vol.skills?.some(skill => skill.toLowerCase().includes(staffSearchTerm.toLowerCase())) ||
+                        vol.bio?.toLowerCase().includes(staffSearchTerm.toLowerCase());
+                      return roleMatch && searchMatch;
+                    });
+                    return `${filtered.length} ${filtered.length === 1 ? 'member' : 'members'} found`;
                   })()}
                 </div>
               </div>
@@ -1374,7 +1558,15 @@ export default function ResidentDashboard() {
             {volunteers.length > 0 ? (
               <div className="space-y-4">
                 {volunteers
-                  .filter(vol => selectedRole === 'all' || vol.role?.toLowerCase() === selectedRole.toLowerCase())
+                  .filter(vol => {
+                    const roleMatch = selectedRole === 'all' || vol.role?.toLowerCase() === selectedRole.toLowerCase();
+                    const searchMatch = !staffSearchTerm || 
+                      vol.name?.toLowerCase().includes(staffSearchTerm.toLowerCase()) ||
+                      vol.job?.toLowerCase().includes(staffSearchTerm.toLowerCase()) ||
+                      vol.skills?.some(skill => skill.toLowerCase().includes(staffSearchTerm.toLowerCase())) ||
+                      vol.bio?.toLowerCase().includes(staffSearchTerm.toLowerCase());
+                    return roleMatch && searchMatch;
+                  })
                   .map(vol => (
                     <div key={vol._id} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-all">
                       <div className="flex justify-between items-start mb-3">
@@ -1389,6 +1581,13 @@ export default function ResidentDashboard() {
                               vol.role?.toLowerCase() === 'volunteer' ? 'bg-green-100 text-green-800' :
                               vol.role?.toLowerCase() === 'staff' ? 'bg-purple-100 text-purple-800' :
                               vol.role?.toLowerCase() === 'admin' ? 'bg-red-100 text-red-800' :
+                              vol.role?.toLowerCase() === 'electrician' || vol.role?.toLowerCase() === 'plumber' || 
+                              vol.role?.toLowerCase() === 'maid' || vol.role?.toLowerCase() === 'cook' ||
+                              vol.role?.toLowerCase() === 'cleaner' || vol.role?.toLowerCase() === 'gardener' ||
+                              vol.role?.toLowerCase() === 'security' || vol.role?.toLowerCase() === 'maintenance' ||
+                              vol.role?.toLowerCase() === 'carpenter' || vol.role?.toLowerCase() === 'technician' ||
+                              vol.role?.toLowerCase() === 'manager' || vol.role?.toLowerCase() === 'worker' ?
+                              'bg-orange-100 text-orange-800' :
                               'bg-gray-100 text-gray-800'
                             }`}>
                               {vol.role || 'Volunteer'}
@@ -1444,27 +1643,40 @@ export default function ResidentDashboard() {
                         </div>
                       </div>
                       
-                      {/* Action Buttons */}
+                      {/* Action Buttons - Only Ratings and Profile */}
                       <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100">
-                        <button 
-                          onClick={() => handleRequestService(vol)}
-                          className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors text-sm"
-                        >
-                          Request Service
-                        </button>
-                        <Link 
-                          to={`/chat/${vol._id}`} 
-                          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-sm"
-                        >
-                          Message
-                        </Link>
                         {vol.hasRatings && (
                           <Link 
                             to={`/ratings/${vol._id}`} 
-                            className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors text-sm"
+                            className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors text-sm flex items-center"
                           >
+                            <Star size={16} className="mr-1" />
                             View Ratings
                           </Link>
+                        )}
+                        <Link 
+                          to={`/profile/${vol._id}`} 
+                          className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors text-sm flex items-center"
+                        >
+                          <Users size={16} className="mr-1" />
+                          View Profile
+                        </Link>
+                        {blockedUsers.includes(vol._id) ? (
+                          <button
+                            onClick={() => handleBlockUser(vol._id, true)}
+                            className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors text-sm flex items-center"
+                          >
+                            <UserCheck size={16} className="mr-1" />
+                            Unblock
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleBlockUser(vol._id, false)}
+                            className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm flex items-center"
+                          >
+                            <Ban size={16} className="mr-1" />
+                            Block
+                          </button>
                         )}
                       </div>
                     </div>

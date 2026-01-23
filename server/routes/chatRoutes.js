@@ -122,6 +122,32 @@ router.post('/:chatId/messages', auth, async (req, res) => {
       return res.status(403).json({ message: 'You are not a participant in this chat' });
     }
 
+    // Check if there's a completed request between these two users
+    const Request = require('../models/requestSchema');
+    const otherParticipant = chat.participants.find(p => p.toString() !== req.user.userId);
+    
+    if (otherParticipant) {
+      const completedRequest = await Request.findOne({
+        status: 'completed',
+        $or: [
+          { userId: req.user.userId, completedBy: otherParticipant },
+          { userId: otherParticipant, completedBy: req.user.userId }
+        ]
+      });
+
+      if (completedRequest) {
+        return res.status(403).json({ 
+          message: 'Cannot send messages. The service request has been completed.' 
+        });
+      }
+    }
+
+    if (completedRequest) {
+      return res.status(403).json({ 
+        message: 'Cannot send messages. The service request has been completed.' 
+      });
+    }
+
     const message = await Message.create({
       chatId,
       sender: req.user.userId,

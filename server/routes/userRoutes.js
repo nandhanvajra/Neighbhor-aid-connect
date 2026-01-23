@@ -170,4 +170,93 @@ router.put('/profile', auth, async (req, res) => {
   }
 });
 
+// POST /api/users/:id/block - Block a user
+router.post('/:id/block', auth, async (req, res) => {
+  try {
+    const userIdToBlock = req.params.id;
+    const currentUserId = req.user.userId;
+
+    if (userIdToBlock === currentUserId) {
+      return res.status(400).json({ message: 'You cannot block yourself' });
+    }
+
+    const user = await User.findById(currentUserId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if already blocked
+    if (user.blockedUsers && user.blockedUsers.includes(userIdToBlock)) {
+      return res.status(400).json({ message: 'User is already blocked' });
+    }
+
+    // Add to blocked users
+    if (!user.blockedUsers) {
+      user.blockedUsers = [];
+    }
+    user.blockedUsers.push(userIdToBlock);
+    await user.save();
+
+    res.status(200).json({ 
+      message: 'User blocked successfully',
+      blockedUsers: user.blockedUsers
+    });
+  } catch (err) {
+    console.error('Error blocking user:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// POST /api/users/:id/unblock - Unblock a user
+router.post('/:id/unblock', auth, async (req, res) => {
+  try {
+    const userIdToUnblock = req.params.id;
+    const currentUserId = req.user.userId;
+
+    const user = await User.findById(currentUserId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if user is blocked
+    if (!user.blockedUsers || !user.blockedUsers.includes(userIdToUnblock)) {
+      return res.status(400).json({ message: 'User is not blocked' });
+    }
+
+    // Remove from blocked users
+    user.blockedUsers = user.blockedUsers.filter(
+      id => id.toString() !== userIdToUnblock
+    );
+    await user.save();
+
+    res.status(200).json({ 
+      message: 'User unblocked successfully',
+      blockedUsers: user.blockedUsers
+    });
+  } catch (err) {
+    console.error('Error unblocking user:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// GET /api/users/blocked - Get list of blocked users
+router.get('/blocked/list', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId)
+      .populate('blockedUsers', 'name email userType job')
+      .select('blockedUsers');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({ 
+      blockedUsers: user.blockedUsers || []
+    });
+  } catch (err) {
+    console.error('Error fetching blocked users:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 module.exports = router;

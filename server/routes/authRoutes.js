@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/userSchema');
 const Activity = require('../models/activitySchema');
+const config = require('../config/config');
 const router = express.Router();
 
 // Use a constant secret key
@@ -171,6 +172,7 @@ router.post('/signup', async (req, res) => {
      password, 
      address, 
      job,
+     userType,
      isAdmin,
      phone,
      bio,
@@ -188,6 +190,22 @@ router.post('/signup', async (req, res) => {
       console.log('→ Signup failed: user exists');
       return res.status(400).json({ message: 'User already exists' });
     }
+
+    // Validate userType
+    if (!userType || !['resident', 'worker'].includes(userType)) {
+      return res.status(400).json({ message: 'Invalid user type. Must be "resident" or "worker"' });
+    }
+
+    // Set role based on userType and job
+    let role = 'resident'; // default
+    if (userType === 'worker') {
+      // For workers, try to match job to available roles, otherwise use job as role
+      if (config.availableRoles.includes(job)) {
+        role = job;
+      } else {
+        role = 'worker'; // fallback role for workers
+      }
+    }
     
     const newUser = await User.create({ 
       name, 
@@ -195,6 +213,8 @@ router.post('/signup', async (req, res) => {
       password, 
       address,
       job,
+      userType,
+      role,
       phone,
       bio,
       skills,
@@ -237,6 +257,8 @@ router.post('/signup', async (req, res) => {
         email: newUser.email,
         address: newUser.address,
         job: newUser.job,
+        userType: newUser.userType,
+        role: newUser.role,
         phone: newUser.phone,
         bio: newUser.bio,
         skills: newUser.skills,
@@ -301,6 +323,8 @@ router.post('/login', async (req, res) => {
         email: user.email,
         address: user.address,
         job: user.job,
+        userType: user.userType,
+        role: user.role,
         isadmin: user.isAdmin,
         phone: user.phone,
         bio: user.bio,
