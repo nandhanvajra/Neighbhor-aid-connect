@@ -21,6 +21,7 @@ function App() {
             <Route path='/signup' element={<Signup/>}/>
             <Route path='/dashboard' element={<DashBoard/>}/>
             <Route path='/post-request' element={<PostRequest/>}/>
+            <Route path='/chat/group/:chatid' element={<ChatApplication/>}/>
             <Route path='/chat/:chatid' element={<ChatApplication/>}/>
             <Route path='/profile/:userId' element={<UserProfilePage/>}/>
             <Route path='/profile/edit' element={<UserProfilePage editMode={true}/>}/>

@@ -420,4 +420,18 @@ router.get('/reports', async (req, res) => {
   }
 });
 
+// GET /api/admin/residents — list residents for admin group chat member picker
+router.get('/residents', async (req, res) => {
+  try {
+    const residents = await User.find({ userType: 'resident' })
+      .select('name email userType role')
+      .sort({ name: 1 })
+      .lean();
+    res.status(200).json({ residents });
+  } catch (error) {
+    console.error('List residents error:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
 module.exports = router; 

@@ -22,8 +22,10 @@ const auth = (req, res, next) => {
     const verified = jwt.verify(token, jwtSecret);
     console.log('Token verified, user ID:', verified.userId);
     
-    // Add user from token to request object
     req.user = verified;
+    if (verified.userId != null) {
+      req.user.userId = String(verified.userId);
+    }
     next();
   } catch (err) {
     console.error('Authentication error:', err.message);
@@ -53,8 +55,10 @@ const adminAuth = async (req, res, next) => {
       return res.status(403).json({ message: 'Admin access required' });
     }
     
-    // Add user info to request object
     req.user = verified;
+    if (verified.userId != null) {
+      req.user.userId = String(verified.userId);
+    }
     req.adminUser = user;
     next();
   } catch (err) {

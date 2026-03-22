@@ -67,6 +67,7 @@ router.post('/create-admin', async (req, res) => {
       password, 
       address,
       job,
+      userType: 'resident',
       phone,
       bio,
       skills,

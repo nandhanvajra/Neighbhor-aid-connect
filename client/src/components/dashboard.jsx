@@ -22,7 +22,10 @@ import {
   UserCheck,
   Bot,
   User,
-  Shield
+  Shield,
+  Calendar,
+  UsersRound,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import UserList from './UserList';
@@ -179,6 +182,27 @@ export default function ResidentDashboard() {
   const [ratingError, setRatingError] = useState('');
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [staffSearchTerm, setStaffSearchTerm] = useState('');
+  const [chatFilter, setChatFilter] = useState('all');
+  const [myChats, setMyChats] = useState([]);
+  const [chatsLoading, setChatsLoading] = useState(false);
+  const [adminResidents, setAdminResidents] = useState([]);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupMemberIds, setNewGroupMemberIds] = useState([]);
+  const [groupSaving, setGroupSaving] = useState(false);
+  const [manageGroup, setManageGroup] = useState(null);
+  const [addMemberIds, setAddMemberIds] = useState([]);
+  const [communityEvents, setCommunityEvents] = useState([]);
+  const [communityLoading, setCommunityLoading] = useState(false);
+  const [eventForm, setEventForm] = useState({
+    title: '',
+    description: '',
+    startDate: '',
+    endDate: '',
+    imageUrl: ''
+  });
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [joiningEvent, setJoiningEvent] = useState(false);
 
   // Helper function to get user ID consistently
   const getUserId = () => user?._id || user?.id;
@@ -395,6 +419,44 @@ export default function ResidentDashboard() {
   }, [activeTab, token]);
 
   useEffect(() => {
+    if (activeTab !== 'chats' || !token) return;
+    setChatsLoading(true);
+    fetch(`${config.apiBaseUrl}/api/chats/my`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setMyChats(Array.isArray(data) ? data : []))
+      .catch(() => setMyChats([]))
+      .finally(() => setChatsLoading(false));
+  }, [activeTab, token]);
+
+  useEffect(() => {
+    if (activeTab !== 'community' || !token) return;
+    setCommunityLoading(true);
+    fetch(`${config.apiBaseUrl}/api/events`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setCommunityEvents(Array.isArray(data) ? data : []))
+      .catch(() => setCommunityEvents([]))
+      .finally(() => setCommunityLoading(false));
+  }, [activeTab, token]);
+
+  useEffect(() => {
+    if (!isAdmin || !token || (!groupModalOpen && !manageGroup)) return;
+    fetch(`${config.apiBaseUrl}/api/admin/residents`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.residents && Array.isArray(data.residents)) {
+          setAdminResidents(data.residents);
+        }
+      })
+      .catch(() => setAdminResidents([]));
+  }, [isAdmin, token, groupModalOpen, manageGroup]);
+
+  useEffect(() => {
     if (!user || !getUserId()) return;
     
     // Request notification permission
@@ -475,6 +537,7 @@ export default function ResidentDashboard() {
       'Bot': Bot,
       'User': User,
       'Shield': Shield,
+      'Calendar': Calendar,
       'LogOut': LogOut
     };
     
@@ -901,6 +964,260 @@ export default function ResidentDashboard() {
       console.error('Editing rating error:', err);
     } finally {
       setRatingLoading(false);
+    }
+  };
+
+  const getSyntheticDirectRows = () => {
+    const uid = getUserId();
+    if (!user || !uid || !allRequests?.length) return [];
+    const myRequests = allRequests.filter((req) => req.userId === uid);
+    const acceptedUserIds = [
+      ...new Set(
+        myRequests
+          .filter(
+            (req) =>
+              req.completedBy && (req.status === 'in-progress' || req.status === 'completed')
+          )
+          .map((req) => req.completedBy)
+      )
+    ];
+    const helpingRequests = allRequests.filter((req) => req.completedBy === uid);
+    const helpingUserIds = [
+      ...new Set(
+        helpingRequests
+          .filter(
+            (req) => req.userId && (req.status === 'in-progress' || req.status === 'completed')
+          )
+          .map((req) => req.userId)
+      )
+    ];
+    const allIds = [...new Set([...acceptedUserIds, ...helpingUserIds])];
+    const apiDirect = myChats.filter(
+      (c) => !c.isGroup && c.chatType !== 'group' && (c.participants?.length === 2 || !c.isGroup)
+    );
+    return allIds
+      .filter((otherId) => {
+        const inApi = apiDirect.some((c) =>
+          (c.participants || []).some((p) => (p._id || p).toString() === String(otherId))
+        );
+        return !inApi;
+      })
+      .map((otherId) => {
+        let userName = otherId;
+        const asRequester = allRequests.some(
+          (r) => r.userId === uid && String(r.completedBy) === String(otherId)
+        );
+        const filterKind = asRequester ? 'worker' : 'resident';
+        const reqWithHelper = allRequests.find(
+          (r) => r.completedBy === otherId && r.completedByName
+        );
+        const reqWithRequester = allRequests.find((r) => r.userId === otherId && r.userName);
+        if (reqWithHelper) userName = reqWithHelper.completedByName;
+        else if (reqWithRequester) userName = reqWithRequester.userName;
+        return { _synthetic: true, otherUserId: otherId, userName, filterKind };
+      });
+  };
+
+  const buildChatRows = () => {
+    const uid = getUserId();
+    const rows = [];
+    (myChats || []).forEach((c) => {
+      if (c.isGroup || c.chatType === 'group') {
+        rows.push({
+          key: `g-${c._id}`,
+          isGroup: true,
+          title: c.name || 'Group chat',
+          chatId: c._id,
+          filterKind: 'group'
+        });
+        return;
+      }
+      const others = (c.participants || []).filter(
+        (p) => (p._id || p).toString() !== String(uid)
+      );
+      const other = others[0];
+      const filterKind =
+        c.filterKind || (other?.userType === 'worker' ? 'worker' : 'resident');
+      rows.push({
+        key: `d-${c._id}`,
+        isGroup: false,
+        title: other?.name || 'Direct message',
+        otherUserId: other?._id || other,
+        chatId: c._id,
+        filterKind
+      });
+    });
+    getSyntheticDirectRows().forEach((s, i) => {
+      rows.push({
+        key: `s-${s.otherUserId}-${i}`,
+        isGroup: false,
+        title: s.userName,
+        otherUserId: s.otherUserId,
+        filterKind: s.filterKind,
+        synthetic: true
+      });
+    });
+    return rows;
+  };
+
+  const passesChatFilter = (row) => {
+    if (chatFilter === 'all') return true;
+    if (chatFilter === 'groups') return !!row.isGroup;
+    if (row.isGroup) return false;
+    if (chatFilter === 'worker') return row.filterKind === 'worker';
+    if (chatFilter === 'resident') return row.filterKind === 'resident';
+    return true;
+  };
+
+  const handleCreateGroup = async () => {
+    if (!token || !newGroupName.trim()) {
+      alert('Enter a group name');
+      return;
+    }
+    setGroupSaving(true);
+    try {
+      const res = await fetch(`${config.apiBaseUrl}/api/chats/group`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: newGroupName.trim(),
+          memberIds: newGroupMemberIds
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Failed to create group');
+      setGroupModalOpen(false);
+      setNewGroupName('');
+      setNewGroupMemberIds([]);
+      fetch(`${config.apiBaseUrl}/api/chats/my`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then((r) => r.json())
+        .then((d) => setMyChats(Array.isArray(d) ? d : []));
+      alert('Group chat created');
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setGroupSaving(false);
+    }
+  };
+
+  const handleAddGroupMembers = async () => {
+    if (!token || !manageGroup?._id || !addMemberIds.length) return;
+    try {
+      const res = await fetch(
+        `${config.apiBaseUrl}/api/chats/${manageGroup._id}/members`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ userIds: addMemberIds })
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Failed to add members');
+      setManageGroup(data);
+      setAddMemberIds([]);
+      fetch(`${config.apiBaseUrl}/api/chats/my`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then((r) => r.json())
+        .then((d) => setMyChats(Array.isArray(d) ? d : []));
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  const handleRemoveGroupMember = async (userId) => {
+    if (!token || !manageGroup?._id) return;
+    if (!window.confirm('Remove this member from the group?')) return;
+    try {
+      const res = await fetch(
+        `${config.apiBaseUrl}/api/chats/${manageGroup._id}/members/${userId}`,
+        { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Failed to remove member');
+      setManageGroup(data);
+      fetch(`${config.apiBaseUrl}/api/chats/my`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then((r) => r.json())
+        .then((d) => setMyChats(Array.isArray(d) ? d : []));
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  const handleJoinCommunityEvent = async () => {
+    if (!token || !selectedEvent?._id || user?.userType !== 'resident') return;
+    setJoiningEvent(true);
+    try {
+      const res = await fetch(
+        `${config.apiBaseUrl}/api/events/${selectedEvent._id}/join`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Could not join event');
+      if (data.event) setSelectedEvent(data.event);
+      setCommunityEvents((prev) =>
+        prev.map((ev) => (ev._id === data.event?._id ? data.event : ev))
+      );
+      if (data.groupChatId) {
+        alert('You joined the event and were added to its group chat.');
+      } else {
+        alert(data.message || 'Joined');
+      }
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setJoiningEvent(false);
+    }
+  };
+
+  const handleCreateEvent = async (e) => {
+    e.preventDefault();
+    if (!token || !isAdmin) return;
+    if (!eventForm.title.trim() || !eventForm.startDate || !eventForm.endDate) {
+      alert('Title and dates are required');
+      return;
+    }
+    try {
+      const res = await fetch(`${config.apiBaseUrl}/api/events`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: eventForm.title.trim(),
+          description: eventForm.description,
+          imageUrl: eventForm.imageUrl,
+          startDate: eventForm.startDate,
+          endDate: eventForm.endDate
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Failed to create event');
+      setEventForm({
+        title: '',
+        description: '',
+        startDate: '',
+        endDate: '',
+        imageUrl: ''
+      });
+      setCommunityEvents((prev) => [...prev, data]);
+      alert('Event created');
+    } catch (err) {
+      alert(err.message);
     }
   };
 
@@ -1668,55 +1985,478 @@ export default function ResidentDashboard() {
 
         {activeTab === 'chats' && user && (
           <section>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Helpers You've Chatted With</h2>
-            <ul className="space-y-2">
-              {(() => {
-                // 1. Get all requests for the current user (as requester)
-                const myRequests = allRequests.filter(req => req.userId === user._id);
-                // 2. Get unique user IDs who accepted the current user's requests
-                const acceptedUserIds = [
-                  ...new Set(
-                    myRequests
-                      .filter(req => req.completedBy && (req.status === 'in-progress' || req.status === 'completed'))
-                      .map(req => req.completedBy)
-                  )
-                ];
-                // 3. Get all requests where the current user is the helper (as completedBy)
-                const helpingRequests = allRequests.filter(req => req.completedBy === user._id);
-                // 4. Get unique user IDs who you are helping
-                const helpingUserIds = [
-                  ...new Set(
-                    helpingRequests
-                      .filter(req => req.userId && (req.status === 'in-progress' || req.status === 'completed'))
-                      .map(req => req.userId)
-                  )
-                ];
-                // 5. Merge both lists and remove duplicates
-                const allChatUserIds = [...new Set([...acceptedUserIds, ...helpingUserIds])];
-                // 6. Render chat list
-                return allChatUserIds.length === 0 ? (
-                  <li className="text-gray-500">No helpers or users to chat with yet.</li>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+              <h2 className="text-2xl font-bold text-gray-800">Chats</h2>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setGroupModalOpen(true)}
+                  className="inline-flex items-center justify-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 text-sm font-medium"
+                >
+                  <UsersRound className="mr-2" size={18} />
+                  Create group chat (residents)
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2 mb-4">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'groups', label: 'Groups' },
+                { id: 'worker', label: 'Worker' },
+                { id: 'resident', label: 'Resident' }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setChatFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border ${
+                    chatFilter === tab.id
+                      ? 'bg-orange-500 text-white border-orange-500'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-orange-300'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {chatsLoading ? (
+              <p className="text-gray-500">Loading chats…</p>
+            ) : (
+              <ul className="space-y-2">
+                {buildChatRows().filter(passesChatFilter).length === 0 ? (
+                  <li className="text-gray-500 bg-white p-4 rounded shadow">
+                    No conversations in this filter yet.
+                  </li>
                 ) : (
-                  allChatUserIds.map(chatUserId => {
-                    // Find a request with this user to get their name
-                    let userName = chatUserId;
-                    // If this is a helper, get completedByName; if this is a requester, get userName
-                    const reqWithHelper = allRequests.find(r => r.completedBy === chatUserId && r.completedByName);
-                    const reqWithRequester = allRequests.find(r => r.userId === chatUserId && r.userName);
-                    if (reqWithHelper) userName = reqWithHelper.completedByName;
-                    else if (reqWithRequester) userName = reqWithRequester.userName;
-                    return (
-                      <li key={chatUserId} className="bg-white p-3 rounded shadow hover:shadow-md flex items-center justify-between">
-                        <span className="text-gray-700 font-medium">
-                          <ClickableUserName userId={chatUserId} userName={userName} />
-                        </span>
-                        <Link to={`/chat/${chatUserId}`} className="text-orange-500 hover:underline">Message</Link>
+                  buildChatRows()
+                    .filter(passesChatFilter)
+                    .map((row) => (
+                      <li
+                        key={row.key}
+                        className="bg-white p-3 rounded shadow hover:shadow-md flex flex-wrap items-center justify-between gap-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          {row.isGroup ? (
+                            <span className="text-gray-800 font-medium flex items-center gap-1">
+                              <UsersRound size={16} className="text-orange-500" />
+                              {row.title}
+                              <span className="text-xs text-gray-400">(group)</span>
+                            </span>
+                          ) : (
+                            <span className="text-gray-700 font-medium">
+                              <ClickableUserName
+                                userId={row.otherUserId}
+                                userName={row.title}
+                              />
+                            </span>
+                          )}
+                          {!row.isGroup && (
+                            <span className="text-xs text-gray-400 capitalize">
+                              {row.filterKind}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isAdmin && row.isGroup && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const full = myChats.find((c) => c._id === row.chatId);
+                                setManageGroup(full || { _id: row.chatId, name: row.title });
+                              }}
+                              className="text-sm text-gray-600 hover:text-orange-600"
+                            >
+                              Manage
+                            </button>
+                          )}
+                          <Link
+                            to={
+                              row.isGroup
+                                ? `/chat/group/${row.chatId}`
+                                : `/chat/${row.otherUserId}`
+                            }
+                            className="text-orange-500 hover:underline text-sm font-medium"
+                          >
+                            Open
+                          </Link>
+                        </div>
                       </li>
-                    );
-                  })
-                );
-              })()}
-            </ul>
+                    ))
+                )}
+              </ul>
+            )}
+
+            {groupModalOpen && isAdmin && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
+                  <h3 className="text-lg font-bold text-gray-800 mb-2">New group chat</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Only residents can be added. You will be included automatically.
+                  </p>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Group name</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 mb-4"
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    placeholder="e.g. Building A residents"
+                  />
+                  <p className="text-sm font-medium text-gray-700 mb-2">Members</p>
+                  <div className="max-h-48 overflow-y-auto border rounded-md divide-y mb-4">
+                    {adminResidents.map((r) => (
+                      <label
+                        key={r._id}
+                        className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={newGroupMemberIds.includes(String(r._id))}
+                          onChange={(e) => {
+                            const id = String(r._id);
+                            setNewGroupMemberIds((prev) =>
+                              e.target.checked
+                                ? [...prev, id]
+                                : prev.filter((x) => x !== id)
+                            );
+                          }}
+                        />
+                        <span>{r.name}</span>
+                        <span className="text-gray-400 text-xs">{r.email}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      className="px-4 py-2 rounded-md border border-gray-300 text-gray-700"
+                      onClick={() => setGroupModalOpen(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="px-4 py-2 rounded-md bg-orange-500 text-white disabled:opacity-50"
+                      disabled={groupSaving}
+                      onClick={handleCreateGroup}
+                    >
+                      {groupSaving ? 'Creating…' : 'Create'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {manageGroup && isAdmin && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
+                  <h3 className="text-lg font-bold text-gray-800 mb-2">
+                    Manage group: {manageGroup.name || 'Group'}
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">Current members</p>
+                  <ul className="border rounded-md divide-y mb-4 max-h-40 overflow-y-auto">
+                    {(manageGroup.participants || []).map((p) => (
+                      <li
+                        key={p._id || p}
+                        className="flex items-center justify-between px-3 py-2 text-sm"
+                      >
+                        <span>{p.name || p.email || String(p._id || p)}</span>
+                        {String(p._id || p) !== String(getUserId()) && p.userType === 'resident' && (
+                          <button
+                            type="button"
+                            className="text-red-600 text-xs hover:underline"
+                            onClick={() =>
+                              handleRemoveGroupMember(String(p._id || p))
+                            }
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-sm font-medium text-gray-700 mb-2">Add residents</p>
+                  <div className="max-h-36 overflow-y-auto border rounded-md divide-y mb-4">
+                    {adminResidents
+                      .filter(
+                        (r) =>
+                          !(manageGroup.participants || []).some(
+                            (p) => String(p._id || p) === String(r._id)
+                          )
+                      )
+                      .map((r) => (
+                        <label
+                          key={r._id}
+                          className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={addMemberIds.includes(String(r._id))}
+                            onChange={(e) => {
+                              const id = String(r._id);
+                              setAddMemberIds((prev) =>
+                                e.target.checked
+                                  ? [...prev, id]
+                                  : prev.filter((x) => x !== id)
+                              );
+                            }}
+                          />
+                          <span>{r.name}</span>
+                        </label>
+                      ))}
+                  </div>
+                  <div className="flex justify-end gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      className="px-4 py-2 rounded-md border border-gray-300"
+                      onClick={() => {
+                        setManageGroup(null);
+                        setAddMemberIds([]);
+                      }}
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="button"
+                      className="px-4 py-2 rounded-md bg-orange-500 text-white disabled:opacity-50"
+                      disabled={!addMemberIds.length}
+                      onClick={handleAddGroupMembers}
+                    >
+                      Add selected
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === 'community' && user && (
+          <section>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Community events</h2>
+            <p className="text-gray-600 text-sm mb-6">
+              Admins publish activities here. Residents can join an event and are added to that
+              event&apos;s group chat.
+            </p>
+
+            {isAdmin && (
+              <form
+                onSubmit={handleCreateEvent}
+                className="bg-white p-6 rounded-lg shadow mb-8 space-y-4"
+              >
+                <h3 className="font-semibold text-gray-800">Create event (admin)</h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    value={eventForm.title}
+                    onChange={(e) =>
+                      setEventForm((f) => ({ ...f, title: e.target.value }))
+                    }
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    rows={3}
+                    value={eventForm.description}
+                    onChange={(e) =>
+                      setEventForm((f) => ({ ...f, description: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Start
+                    </label>
+                    <input
+                      type="datetime-local"
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      value={eventForm.startDate}
+                      onChange={(e) =>
+                        setEventForm((f) => ({ ...f, startDate: e.target.value }))
+                      }
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">End</label>
+                    <input
+                      type="datetime-local"
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      value={eventForm.endDate}
+                      onChange={(e) =>
+                        setEventForm((f) => ({ ...f, endDate: e.target.value }))
+                      }
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                    <ImageIcon size={16} />
+                    Image (optional)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="text-sm"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) {
+                        setEventForm((f) => ({ ...f, imageUrl: '' }));
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = () =>
+                        setEventForm((f) => ({
+                          ...f,
+                          imageUrl: typeof reader.result === 'string' ? reader.result : ''
+                        }));
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600"
+                >
+                  Publish event
+                </button>
+              </form>
+            )}
+
+            {communityLoading ? (
+              <p className="text-gray-500">Loading events…</p>
+            ) : communityEvents.length === 0 ? (
+              <div className="bg-white p-8 rounded-lg shadow text-center text-gray-600">
+                No community events yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {communityEvents.map((ev) => (
+                  <button
+                    key={ev._id}
+                    type="button"
+                    onClick={() => setSelectedEvent(ev)}
+                    className="text-left bg-white rounded-lg shadow hover:shadow-md overflow-hidden border border-transparent hover:border-orange-200 transition-all"
+                  >
+                    {ev.imageUrl ? (
+                      <img
+                        src={ev.imageUrl}
+                        alt=""
+                        className="w-full h-36 object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-36 bg-gray-100 flex items-center justify-center text-gray-400">
+                        <Calendar size={40} />
+                      </div>
+                    )}
+                    <div className="p-4">
+                      <h3 className="font-semibold text-gray-900 mb-1">{ev.title}</h3>
+                      <p className="text-xs text-gray-500">
+                        {new Date(ev.startDate).toLocaleString()} –{' '}
+                        {new Date(ev.endDate).toLocaleString()}
+                      </p>
+                      <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                        {ev.description}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {selectedEvent && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
+                  {selectedEvent.imageUrl && (
+                    <img
+                      src={selectedEvent.imageUrl}
+                      alt=""
+                      className="w-full h-48 object-cover rounded-md mb-4"
+                    />
+                  )}
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">
+                    {selectedEvent.title}
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-2">
+                    <strong>Starts:</strong>{' '}
+                    {new Date(selectedEvent.startDate).toLocaleString()}
+                  </p>
+                  <p className="text-sm text-gray-600 mb-4">
+                    <strong>Ends:</strong>{' '}
+                    {new Date(selectedEvent.endDate).toLocaleString()}
+                  </p>
+                  <p className="text-gray-700 text-sm mb-4 whitespace-pre-wrap">
+                    {selectedEvent.description}
+                  </p>
+                  <div className="mb-4">
+                    <p className="text-sm font-medium text-gray-800 mb-2">
+                      Who joined ({selectedEvent.attendees?.length || 0})
+                    </p>
+                    <ul className="text-sm text-gray-600 max-h-32 overflow-y-auto border rounded-md divide-y">
+                      {(selectedEvent.attendees || []).map((a, idx) => (
+                        <li key={a.userId?._id || a.userId || idx} className="px-3 py-2">
+                          {a.userId?.name || 'Member'}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    <button
+                      type="button"
+                      className="px-4 py-2 rounded-md border border-gray-300"
+                      onClick={() => setSelectedEvent(null)}
+                    >
+                      Close
+                    </button>
+                    {user.userType === 'resident' && (
+                      <button
+                        type="button"
+                        className="px-4 py-2 rounded-md bg-orange-500 text-white disabled:opacity-50"
+                        disabled={joiningEvent}
+                        onClick={handleJoinCommunityEvent}
+                      >
+                        {joiningEvent
+                          ? 'Joining…'
+                          : (selectedEvent.attendees || []).some(
+                              (a) =>
+                                String(a.userId?._id || a.userId) === String(getUserId())
+                            )
+                          ? 'Joined — open group chat'
+                          : 'Join event'}
+                      </button>
+                    )}
+                    {user.userType === 'worker' && (
+                      <p className="text-sm text-gray-500 self-center">
+                        Only residents can join events.
+                      </p>
+                    )}
+                  </div>
+                  {user.userType === 'resident' &&
+                    (selectedEvent.attendees || []).some(
+                      (a) =>
+                        String(a.userId?._id || a.userId) === String(getUserId())
+                    ) &&
+                    (selectedEvent.groupChat?._id || selectedEvent.groupChat) && (
+                      <div className="mt-4 text-center">
+                        <Link
+                          to={`/chat/group/${selectedEvent.groupChat?._id || selectedEvent.groupChat}`}
+                          className="text-orange-600 font-medium hover:underline"
+                        >
+                          Open event group chat
+                        </Link>
+                      </div>
+                    )}
+                </div>
+              </div>
+            )}
           </section>
         )}
 

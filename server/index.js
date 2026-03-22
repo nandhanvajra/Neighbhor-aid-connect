@@ -14,6 +14,7 @@ const volunteerRoutes = require('./routes/volunteerRoutes');
 const requestRoutes = require('./routes/requestRoutes');
 const ratingRoutes = require('./routes/ratingRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const communityEventRoutes = require('./routes/communityEventRoutes');
 const assistantRoutes = require('./routes/assistant');
 
 const app = express();
@@ -24,7 +25,7 @@ const io = new Server(server, {
 
 // Middleware
 app.use(cors(config.cors));
-app.use(express.json());
+app.use(express.json({ limit: '12mb' }));
 app.use(cookieParser());
 
 // Add io to request object for socket access in routes
@@ -42,6 +43,7 @@ app.use('/api/volunteers', volunteerRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/events', communityEventRoutes);
 // Resident AI assistant (POST /api/assistant, JSON body: { message: string })
 app.use('/api/assistant', assistantRoutes);
 

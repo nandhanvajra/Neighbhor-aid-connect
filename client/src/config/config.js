@@ -188,6 +188,7 @@ const config = {
     { id: 'requests', label: 'Requests', icon: 'FileText', adminOnly: false, excludeWorker: true },
     { id: 'staff', label: 'Staff', icon: 'Star', adminOnly: false, excludeWorker: true },
     { id: 'chats', label: 'Chats', icon: 'MessageCircle', adminOnly: false },
+    { id: 'community', label: 'Community', icon: 'Calendar', adminOnly: false, excludeWorker: false },
     { id: 'assistant', label: 'AI Assistant', icon: 'Bot', adminOnly: false, excludeWorker: true },
     { id: 'profile', label: 'Profile', icon: 'User', adminOnly: false },
     { id: 'notifications', label: 'Notifications', icon: 'Bell', adminOnly: false },
