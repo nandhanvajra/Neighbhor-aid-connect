@@ -19,7 +19,10 @@ import {
   Hammer,
   Settings,
   Ban,
-  UserCheck
+  UserCheck,
+  Bot,
+  User,
+  Shield
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import UserList from './UserList';
@@ -31,6 +34,7 @@ import UserProfile from './UserProfile';
 import RatingModal from './RatingModal';
 import RatingDisplay from './RatingDisplay';
 import AdminDashboard from './AdminDashboard';
+import ResidentAssistant from './ResidentAssistant';
 
 // Legacy RatingModal component - keeping for backward compatibility
 function LegacyRatingModal({ open, onClose, requestId, onRated }) {
@@ -468,12 +472,21 @@ export default function ResidentDashboard() {
       'Bell': Bell,
       'Wrench': Wrench,
       'UserCog': UserCog,
+      'Bot': Bot,
+      'User': User,
+      'Shield': Shield,
       'LogOut': LogOut
     };
     
     const isWorker = user?.userType === 'worker' || (user?.role && user.role !== 'resident' && user.role !== 'admin');
     
     const baseLinks = config.dashboardNavItems
+      .filter(item => {
+        if (item.id === 'assistant') {
+          return user?.userType === 'resident';
+        }
+        return true;
+      })
       .filter(item => !item.adminOnly || isAdmin)
       .filter(item => !(item.excludeWorker && isWorker && !isAdmin))
       .map(item => ({
@@ -1705,6 +1718,10 @@ export default function ResidentDashboard() {
               })()}
             </ul>
           </section>
+        )}
+
+        {activeTab === 'assistant' && user && user.userType === 'resident' && (
+          <ResidentAssistant token={token} />
         )}
 
         {activeTab === 'notifications' && user && (

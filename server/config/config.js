@@ -26,6 +26,10 @@ const config = {
     secret: process.env.JWT_SECRET || 'your-secret-key',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d'
   },
+
+  // AI assistant (used by server/services/aiService.js — set in server/.env)
+  // GEMINI_API_KEY=
+  // AI_MODEL=gemini-2.0-flash
   
   // Service Categories - Now dynamic and configurable
   serviceCategories: [

@@ -14,6 +14,7 @@ const volunteerRoutes = require('./routes/volunteerRoutes');
 const requestRoutes = require('./routes/requestRoutes');
 const ratingRoutes = require('./routes/ratingRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const assistantRoutes = require('./routes/assistant');
 
 const app = express();
 const server = http.createServer(app);
@@ -41,6 +42,8 @@ app.use('/api/volunteers', volunteerRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/admin', adminRoutes);
+// Resident AI assistant (POST /api/assistant, JSON body: { message: string })
+app.use('/api/assistant', assistantRoutes);
 
 
 // MongoDB connection
