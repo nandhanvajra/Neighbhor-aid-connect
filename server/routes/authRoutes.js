@@ -325,7 +325,7 @@ router.post('/login', async (req, res) => {
         job: user.job,
         userType: user.userType,
         role: user.role,
-        isadmin: user.isAdmin,
+        isAdmin: user.isAdmin,
         phone: user.phone,
         bio: user.bio,
         skills: user.skills,
@@ -373,6 +373,7 @@ router.get('/user', async (req, res) => {
         email: user.email,
         address: user.address,
         job: user.job,
+        userType: user.userType,
         isAdmin: user.isAdmin,
         role: user.role,
         phone: user.phone,
@@ -422,7 +423,8 @@ router.put('/user/profile', async (req, res) => {
       gender,
       occupation,
       emergencyContact,
-      preferences
+      preferences,
+      requestPreferences
     } = req.body;
     
     // Update user profile
@@ -440,7 +442,8 @@ router.put('/user/profile', async (req, res) => {
         gender,
         occupation,
         emergencyContact,
-        preferences
+        preferences,
+        requestPreferences
       },
       { new: true, runValidators: true }
     ).select('-password');

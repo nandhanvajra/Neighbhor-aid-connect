@@ -102,18 +102,24 @@ const mapWorkerProfessionToCategory = (profession) => {
 router.get('/all', auth, async (req, res) => {
     try {
         // Get current user to check if they're a worker and get blocked users
-        const currentUser = await User.findById(req.user.userId).select('userType job blockedUsers');
+        const currentUser = await User.findById(req.user.userId).select('userType job blockedUsers requestPreferences');
         
         let query = {};
         
-        // If user is a worker, filter requests by their profession
+        // If user is a worker, filter requests by their preferences or profession
         if (currentUser.userType === 'worker') {
-          const category = mapWorkerProfessionToCategory(currentUser.job);
-          if (category) {
-            query.category = category;
+          // Prioritize requestPreferences if the worker has set them in their profile
+          if (currentUser.requestPreferences && currentUser.requestPreferences.length > 0) {
+            query.category = { $in: currentUser.requestPreferences };
           } else {
-            // If profession doesn't map to a category, return empty array
-            return res.status(200).json({ success: true, requests: [] });
+            // Fall back to mapping job to category
+            const category = mapWorkerProfessionToCategory(currentUser.job);
+            if (category) {
+              query.category = category;
+            } else {
+              // If profession doesn't map to a category, return empty array
+              return res.status(200).json({ success: true, requests: [] });
+            }
           }
         }
         

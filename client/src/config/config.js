@@ -185,8 +185,8 @@ const config = {
   // Dashboard Navigation - Now dynamic and configurable
   dashboardNavItems: [
     { id: 'overview', label: 'Overview', icon: 'Home', adminOnly: false },
-    { id: 'requests', label: 'Requests', icon: 'FileText', adminOnly: false },
-    { id: 'staff', label: 'Staff', icon: 'Star', adminOnly: false },
+    { id: 'requests', label: 'Requests', icon: 'FileText', adminOnly: false, excludeWorker: true },
+    { id: 'staff', label: 'Staff', icon: 'Star', adminOnly: false, excludeWorker: true },
     { id: 'chats', label: 'Chats', icon: 'MessageCircle', adminOnly: false },
     { id: 'profile', label: 'Profile', icon: 'User', adminOnly: false },
     { id: 'notifications', label: 'Notifications', icon: 'Bell', adminOnly: false },

@@ -471,8 +471,11 @@ export default function ResidentDashboard() {
       'LogOut': LogOut
     };
     
+    const isWorker = user?.userType === 'worker' || (user?.role && user.role !== 'resident' && user.role !== 'admin');
+    
     const baseLinks = config.dashboardNavItems
       .filter(item => !item.adminOnly || isAdmin)
+      .filter(item => !(item.excludeWorker && isWorker && !isAdmin))
       .map(item => ({
         ...item,
         icon: iconMap[item.icon] || Home
@@ -614,6 +617,7 @@ export default function ResidentDashboard() {
         );
         
         alert('Request has been marked as completed!');
+        
         // If the current user is the poster, show the rating modal
         const updatedRequest = data.request;
         if (updatedRequest && updatedRequest.userId === getUserId() && updatedRequest.completedBy) {
@@ -971,12 +975,6 @@ export default function ResidentDashboard() {
                   <div className="text-sm text-gray-600">Completed Services</div>
                 </div>
                 <div className="bg-white p-6 rounded-lg shadow text-center">
-                  <div className="text-3xl font-bold text-orange-600 mb-2">
-                    {allRequests.filter(req => req.userId === getUserId() && req.status === 'completed' && req.completedBy && !req.rating?.stars).length}
-                  </div>
-                  <div className="text-sm text-gray-600">Pending Ratings</div>
-                </div>
-                <div className="bg-white p-6 rounded-lg shadow text-center">
                   <div className="text-3xl font-bold text-yellow-600 mb-2">
                     {allRequests.filter(req => req.userId === getUserId() && req.status === 'completed' && req.completedBy && req.rating?.stars).length}
                   </div>
@@ -1248,64 +1246,7 @@ export default function ResidentDashboard() {
 
         {activeTab === 'requests' && user && (
           <>
-            {/* Unrated Completed Tasks Section */}
-            {allRequests.filter(service => service.status === 'completed' && service.userId === user._id && service.completedBy && !service.rating?.stars).length > 0 && (
-              <div className="mb-8">
-                <h2 className="text-2xl font-bold text-orange-700 mb-4">Rate Your Completed Services</h2>
-                <div className="space-y-4">
-                  {allRequests
-                    .filter(service => service.status === 'completed' && service.userId === user._id && service.completedBy && !service.rating?.stars)
-                    .map((service, index) => (
-                      <div key={service._id || index} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-all border-l-4 border-orange-500">
-                        <div className="flex justify-between items-start mb-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              {getCategoryIcon(service.category)}
-                              <h3 className="text-xl font-semibold text-gray-800">{service.category}</h3>
-                              <span className={`px-2 py-1 text-xs leading-5 font-semibold rounded-full text-white ${getUrgencyColor(service.urgency)}`}>
-                                {service.urgency || "Normal"}
-                              </span>
-                            </div>
-                            <p className="text-gray-700 mb-2">{service.description}</p>
-                            <div className="flex items-center text-sm text-gray-500 mb-2">
-                              <Clock size={16} className="mr-1" />
-                              <span>Completed on {new Date(service.updatedAt || service.createdAt).toLocaleDateString()}</span>
-                            </div>
-                            {service.completedByName && service.completedBy && (
-                              <p className="text-sm text-gray-600 mb-2">
-                                <span className="font-medium">Helper:</span> <ClickableUserName userId={service.completedBy} userName={service.completedByName} />
-                              </p>
-                            )}
-                          </div>
-                          <div className="text-right flex flex-col gap-2">
-                            {service.completedBy && (
-                              <Link 
-                                to={`/profile/${service.completedBy}`} 
-                                className="inline-flex items-center px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors"
-                              >
-                                <Users size={16} className="mr-2" />
-                                View Profile
-                              </Link>
-                            )}
-                            <button
-                              onClick={() => setRatingModal({ 
-                                open: true, 
-                                requestId: service._id, 
-                                requestCategory: service.category,
-                                existingRating: service.rating
-                              })}
-                              className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
-                            >
-                              <Star size={16} className="mr-2" />
-                              Rate This Service
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
+
             
             {/* Rated Completed Tasks Section */}
             {allRequests.filter(service => service.status === 'completed' && service.userId === user._id && service.completedBy && service.rating?.stars).length > 0 && (
@@ -1472,6 +1413,22 @@ export default function ResidentDashboard() {
                             >
                               <CheckCircle size={16} className="mr-2" />
                               {config.requests.markCompletedText}
+                            </button>
+                          )}
+                          
+                          {/* Show inline rating button if completed but not rated */}
+                          {request.status === 'completed' && request.completedBy && !request.rating?.stars && (
+                            <button 
+                              onClick={() => setRatingModal({ 
+                                open: true, 
+                                requestId: request._id, 
+                                requestCategory: request.category,
+                                existingRating: request.rating?.stars ? request.rating : null
+                              })}
+                              className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors flex items-center"
+                            >
+                              <Star size={16} className="mr-2" />
+                              Rate Service
                             </button>
                           )}
                           
@@ -1832,7 +1789,7 @@ export default function ResidentDashboard() {
                                     open: true, 
                                     requestId: service._id, 
                                     requestCategory: service.category,
-                                    existingRating: service.rating
+                                    existingRating: service.rating?.stars ? service.rating : null
                                   })}
                                   className="text-sm text-blue-600 hover:text-blue-700 font-medium ml-2"
                                 >

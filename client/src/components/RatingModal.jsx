@@ -31,11 +31,12 @@ export default function RatingModal({ open, onClose, requestId, requestCategory,
 
     try {
       const token = localStorage.getItem('token');
-      const url = existingRating 
-        ? `${config.apiBaseUrl}/api/ratings/${existingRating._id}`
+      const isEditing = Boolean(existingRating && existingRating.stars);
+      const url = isEditing 
+        ? `${config.apiBaseUrl}/api/ratings/request/${requestId}`
         : `${config.apiBaseUrl}/api/ratings`;
       
-      const method = existingRating ? 'PUT' : 'POST';
+      const method = isEditing ? 'PUT' : 'POST';
       
       const ratingData = {
         stars: selected,
@@ -47,7 +48,7 @@ export default function RatingModal({ open, onClose, requestId, requestCategory,
         isAnonymous
       };
 
-      if (!existingRating) {
+      if (!isEditing) {
         ratingData.requestId = requestId;
       }
 

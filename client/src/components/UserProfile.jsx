@@ -281,6 +281,8 @@ export default function UserProfile() {
     );
   }
 
+  const isWorker = user?.userType === 'worker' || (user?.role && user.role !== 'resident' && user.role !== 'admin');
+
   return (
     <div className="min-h-screen bg-gray-100 py-8">
       <div className="max-w-4xl mx-auto px-4">
@@ -342,14 +344,18 @@ export default function UserProfile() {
 
           {/* User Stats */}
           <div className="mb-6 flex gap-6">
-            <div className="bg-blue-50 rounded-lg p-4 flex-1 text-center">
-              <div className="text-2xl font-bold text-blue-600">{stats.posted}</div>
-              <div className="text-sm text-gray-600">Requests Posted</div>
-            </div>
-            <div className="bg-green-50 rounded-lg p-4 flex-1 text-center">
-              <div className="text-2xl font-bold text-green-600">{stats.solved}</div>
-              <div className="text-sm text-gray-600">Requests Solved</div>
-            </div>
+            {!isWorker && (
+              <>
+                <div className="bg-blue-50 rounded-lg p-4 flex-1 text-center">
+                  <div className="text-2xl font-bold text-blue-600">{stats.posted}</div>
+                  <div className="text-sm text-gray-600">Requests Posted</div>
+                </div>
+                <div className="bg-green-50 rounded-lg p-4 flex-1 text-center">
+                  <div className="text-2xl font-bold text-green-600">{stats.solved}</div>
+                  <div className="text-sm text-gray-600">Requests Solved</div>
+                </div>
+              </>
+            )}
             <div className="bg-yellow-50 rounded-lg p-4 flex-1 text-center">
               <div className="text-2xl font-bold text-yellow-600">{stats.helped}</div>
               <div className="text-sm text-gray-600">Requests Helped With</div>
@@ -382,14 +388,7 @@ export default function UserProfile() {
                 </button>
               </div>
             )}
-            {user && (
-              <button
-                className="text-blue-600 hover:underline ml-2"
-                onClick={() => setRatingModal({ open: true, existingRating: ratingStats })}
-              >
-                Edit My Rating
-              </button>
-            )}
+
           </div>
 
           {/* Profile Content */}
@@ -478,25 +477,7 @@ export default function UserProfile() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-gray-700 text-sm font-medium mb-2">
-                    {config.profile.formLabels.occupation}
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Briefcase size={18} className="text-gray-400" />
-                    </div>
-                    <input
-                      type="text"
-                      className={`pl-10 w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 ${
-                        !editing ? 'bg-gray-50 cursor-not-allowed' : ''
-                      }`}
-                      value={formData.occupation}
-                      onChange={(e) => updateFormData('occupation', e.target.value)}
-                      disabled={!editing}
-                    />
-                  </div>
-                </div>
+
               </div>
 
               {/* Additional Information */}
@@ -667,7 +648,8 @@ export default function UserProfile() {
               </div>
             </div>
 
-            {/* Service Categories to Receive Requests For */}
+            {/* Service Categories to Receive Requests For - Only for workers */}
+            {isWorker && (
             <div className="mt-8 pt-8 border-t">
               <h2 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-6">
                 Service Categories to Receive Requests For
@@ -713,6 +695,7 @@ export default function UserProfile() {
                 )}
               </div>
             </div>
+            )}
           </div>
         </div>
       </div>

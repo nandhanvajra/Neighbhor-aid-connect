@@ -244,6 +244,97 @@ router.get('/request/:requestId', auth, async (req, res) => {
   }
 });
 
+// PUT /api/ratings/request/:requestId - Update a rating by Request ID (only by the original rater)
+router.put('/request/:requestId', auth, async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { stars, review, qualityOfWork, communication, professionalism } = req.body;
+
+    const rating = await Rating.findOne({ requestId });
+
+    if (!rating) {
+      return res.status(404).json({
+        success: false,
+        message: 'Rating not found'
+      });
+    }
+
+    // Check if user is the original rater
+    if (rating.raterId.toString() !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this rating'
+      });
+    }
+
+    // Update rating fields
+    if (stars !== undefined) {
+      if (stars < 1 || stars > 5) {
+        return res.status(400).json({
+          success: false,
+          message: 'Rating must be between 1 and 5'
+        });
+      }
+      rating.stars = stars;
+    }
+
+    if (review !== undefined) rating.review = review;
+    if (qualityOfWork !== undefined) rating.qualityOfWork = qualityOfWork;
+    if (communication !== undefined) rating.communication = communication;
+    if (professionalism !== undefined) rating.professionalism = professionalism;
+
+    rating.updatedAt = new Date();
+    await rating.save();
+
+    // Update request rating
+    const request = await Request.findById(requestId);
+    if (request && request.rating) {
+      request.rating.stars = rating.stars;
+      request.rating.review = rating.review;
+      await request.save();
+    }
+
+    // Recalculate helper's rating statistics
+    const helper = await User.findById(rating.ratedUserId);
+    if (helper) {
+      const allRatings = await Rating.find({ ratedUserId: rating.ratedUserId });
+      const totalRatings = allRatings.length;
+      const averageRating = allRatings.reduce((sum, r) => sum + r.stars, 0) / totalRatings;
+
+      helper.rating.average = Math.round(averageRating * 100) / 100;
+      helper.rating.totalRatings = totalRatings;
+      await helper.save();
+    }
+
+    // Notify the rated user through Socket.io if available
+    if (req.io && rating.ratedUserId) {
+      req.io.to(rating.ratedUserId.toString()).emit('newRating', {
+        ratingId: rating._id,
+        stars,
+        review: review || '',
+        category: rating.category,
+        fromUser: req.user.userId,
+        requestId: rating.requestId,
+        message: `A rating you received has been updated for category '${rating.category}'.`
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Rating updated successfully',
+      rating
+    });
+
+  } catch (err) {
+    console.error('Update rating by request error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: err.message
+    });
+  }
+});
+
 // PUT /api/ratings/:ratingId - Update a rating (only by the original rater)
 router.put('/:ratingId', auth, async (req, res) => {
   try {

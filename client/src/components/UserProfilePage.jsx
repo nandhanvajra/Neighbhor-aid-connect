@@ -173,6 +173,8 @@ export default function UserProfilePage({ editMode }) {
     return null;
   }
 
+  const isWorker = user?.userType === 'worker' || (user?.role && user.role !== 'resident' && user.role !== 'admin');
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -253,7 +255,7 @@ export default function UserProfilePage({ editMode }) {
                     Edit Profile
                   </button>
                 )}
-                {user && isCurrentUser && (
+                {user && isCurrentUser && !isWorker && (
                   <button
                     className="text-blue-600 hover:underline ml-2"
                     onClick={() => setRatingModal({ open: true, existingRating: user.rating })}
