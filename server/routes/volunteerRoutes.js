@@ -7,7 +7,7 @@ const { auth } = require('../middleware/auth');
 // Fetch volunteers with rating information
 router.get('/', auth, async (req, res) => {
   try {
-    const volunteers = await User.find().select('name email job role address phone bio skills rating');
+    const volunteers = await User.find().select('name email job role userType address phone bio skills rating');
     
     // Transform the data to include rating information
     const volunteersWithRatings = volunteers.map(volunteer => {
@@ -18,6 +18,7 @@ router.get('/', auth, async (req, res) => {
         email: volunteer.email,
         job: volunteer.job,
         role: volunteer.role,
+        userType: volunteer.userType,
         address: volunteer.address,
         phone: volunteer.phone,
         bio: volunteer.bio,

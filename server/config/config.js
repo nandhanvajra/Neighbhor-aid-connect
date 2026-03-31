@@ -1,5 +1,6 @@
 // Server configuration file for dynamic settings
-require('dotenv').config();
+require('dotenv').config(); // Try loading from current directory (server/)
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') }); // Fallback to root directory
 
 const config = {
   // Server Configuration
@@ -54,6 +55,7 @@ const config = {
   availableRoles: [
     'admin',
     'resident',
+    'worker',
     'volunteer',
     'staff',
     'manager',

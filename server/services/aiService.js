@@ -113,7 +113,7 @@ function extractGeminiText(response) {
 async function callChatModel(messages, { temperature = 0.1, maxTokens = 400 } = {}) {
   const apiKey = process.env.GEMINI_API_KEY;
   // Override with AI_MODEL in server/.env (e.g. gemini-2.0-flash, gemini-1.5-flash)
-  const modelName = process.env.AI_MODEL || 'gemini-2.0-flash';
+  const modelName = process.env.AI_MODEL || 'gemini-2.5-flash';
 
   if (!apiKey) {
     throw new Error('AI_PROVIDER_NOT_CONFIGURED');

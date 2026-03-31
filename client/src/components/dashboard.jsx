@@ -625,7 +625,7 @@ export default function ResidentDashboard() {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        completedBy: user.id,
+        completedBy: getUserId(),
         status: 'in-progress'
       })
     })
@@ -1387,6 +1387,11 @@ export default function ResidentDashboard() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="text-sm font-medium text-gray-900">{request.category}</span>
+                            {request.requestedWorkerId === getUserId() && (
+                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                                Direct Request
+                              </span>
+                            )}
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm text-gray-900 max-w-xs truncate">{request.description}</div>
@@ -1857,7 +1862,7 @@ export default function ResidentDashboard() {
                   .map(vol => (
                     <div key={vol._id} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-all">
                       <div className="flex justify-between items-start mb-3">
-                        <div className="flex-1">
+                        <div className="flex-1 pr-4">
                           <h3 className="text-lg font-bold text-gray-800 mb-1">
                             <ClickableUserName userId={vol._id} userName={vol.name} />
                           </h3>
@@ -1928,6 +1933,17 @@ export default function ResidentDashboard() {
                             </p>
                           )}
                         </div>
+                        {user?.userType === 'resident' && vol._id !== getUserId() && vol.userType === 'worker' && vol.role !== 'admin' && (
+                          <div className="flex-shrink-0 mt-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleRequestService(vol); }}
+                              className="px-3 py-1.5 bg-orange-500 text-white rounded-md hover:bg-orange-600 shadow border border-orange-600 transition-colors text-sm font-semibold flex items-center"
+                            >
+                              <Wrench size={14} className="mr-1.5" />
+                              Request Service
+                            </button>
+                          </div>
+                        )}
                       </div>
                       
                       {/* Action Buttons - Only Ratings and Profile */}

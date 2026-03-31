@@ -28,7 +28,8 @@ router.post('/', auth, async (req, res) => {
       description,
       urgency,
       preferredTime,
-      addressNote: addressNote || '' // Handle optional field
+      addressNote: addressNote || '', // Handle optional field
+      requestedWorkerId: req.body.staffMemberId || null
     });
 
     console.log('Created new request object:', newRequest);
@@ -121,6 +122,13 @@ router.get('/all', auth, async (req, res) => {
               return res.status(200).json({ success: true, requests: [] });
             }
           }
+          
+          // Only show requests that are open to everyone, or directed specifically to this worker
+          query.$or = [
+            { requestedWorkerId: { $exists: false } },
+            { requestedWorkerId: null },
+            { requestedWorkerId: currentUser._id }
+          ];
         }
         
         const requests = await Request.find(query)

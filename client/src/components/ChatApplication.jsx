@@ -281,6 +281,12 @@ export default function ChatApplication() {
       return;
     }
 
+    // Check for secure context (HTTPS or localhost) — required by most browsers
+    if (typeof window !== 'undefined' && window.isSecureContext === false) {
+      setError('Speech-to-text requires HTTPS or localhost. Please use a secure connection.');
+      return;
+    }
+
     if (listening && recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -313,15 +319,29 @@ export default function ChatApplication() {
 
     rec.onerror = (ev) => {
       if (ev.error === 'not-allowed') {
-        setError('Microphone access denied. Allow the mic to use speech-to-text.');
-      } else if (ev.error !== 'aborted' && ev.error !== 'no-speech') {
-        setError(`Speech recognition: ${ev.error}`);
+        setError('Microphone access denied. Allow the mic and ensure you are on HTTPS or localhost.');
+      } else if (ev.error === 'no-speech') {
+        // No speech detected is not a critical error, just stop quietly
+        setListening(false);
+        recognitionRef.current = null;
+        return;
+      } else if (ev.error !== 'aborted') {
+        setError(`Speech recognition error: ${ev.error}`);
       }
       setListening(false);
       recognitionRef.current = null;
     };
 
     rec.onend = () => {
+      // Auto-restart if user hasn't explicitly stopped
+      if (recognitionRef.current === rec && listening) {
+        try {
+          rec.start();
+          return;
+        } catch {
+          /* fall through to stop */
+        }
+      }
       setListening(false);
       recognitionRef.current = null;
     };
@@ -343,15 +363,40 @@ export default function ChatApplication() {
       return;
     }
     window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = navigator.language || 'en-US';
-    if (senderLabel) {
-      utter.text = `${senderLabel} says: ${text}`;
+
+    const doSpeak = () => {
+      const utter = new SpeechSynthesisUtterance(
+        senderLabel ? `${senderLabel} says: ${text}` : text
+      );
+      utter.lang = navigator.language || 'en-US';
+      // Try to pick a voice explicitly (Chrome sometimes needs this)
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        const preferred = voices.find(v => v.lang.startsWith(utter.lang.split('-')[0]));
+        if (preferred) utter.voice = preferred;
+      }
+      utter.onend = () => setSpeakingMsgId(null);
+      utter.onerror = () => setSpeakingMsgId(null);
+      setSpeakingMsgId(msgId);
+      window.speechSynthesis.speak(utter);
+    };
+
+    // Chrome lazy-loads voices — wait for them if needed
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length === 0) {
+      const onVoicesChanged = () => {
+        window.speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
+        doSpeak();
+      };
+      window.speechSynthesis.addEventListener('voiceschanged', onVoicesChanged);
+      // Fallback: if voices never load, speak anyway after 500ms
+      setTimeout(() => {
+        window.speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
+        if (speakingMsgId !== msgId) doSpeak();
+      }, 500);
+    } else {
+      doSpeak();
     }
-    utter.onend = () => setSpeakingMsgId(null);
-    utter.onerror = () => setSpeakingMsgId(null);
-    setSpeakingMsgId(msgId);
-    window.speechSynthesis.speak(utter);
   }, [speakingMsgId, ttsSupported]);
 
   const formatTime = (timestamp) => {

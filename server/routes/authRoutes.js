@@ -110,6 +110,7 @@ router.post('/create-admin', async (req, res) => {
       token,
       user: {
         id: newAdmin._id,
+        _id: newAdmin._id,
         name: newAdmin.name,
         email: newAdmin.email,
         address: newAdmin.address,
@@ -254,6 +255,7 @@ router.post('/signup', async (req, res) => {
       token,
       user: {
         id: newUser._id,
+        _id: newUser._id,
         name: newUser.name,
         email: newUser.email,
         address: newUser.address,
@@ -320,6 +322,7 @@ router.post('/login', async (req, res) => {
       token, 
       user: {
         id: user._id,
+        _id: user._id,
         name: user.name,
         email: user.email,
         address: user.address,
@@ -370,6 +373,7 @@ router.get('/user', async (req, res) => {
     res.status(200).json({ 
       user: {
         id: user._id,
+        _id: user._id,
         name: user.name,
         email: user.email,
         address: user.address,
@@ -459,6 +463,7 @@ router.put('/user/profile', async (req, res) => {
       message: 'Profile updated successfully',
       user: {
         id: updatedUser._id,
+        _id: updatedUser._id,
         name: updatedUser.name,
         email: updatedUser.email,
         address: updatedUser.address,

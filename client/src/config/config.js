@@ -319,6 +319,17 @@ const config = {
     requiredFieldText: 'Please fill in all required fields',
     successMessage: 'Service request submitted successfully!',
     errorMessage: 'Failed to submit service request: {error}'
+  },
+  
+  // Rating Modal Configuration (used by dashboard rating flow)
+  ratingModal: {
+    title: 'Rate This Service',
+    subtitle: 'How would you rate the service provided?',
+    successMessage: 'Rating submitted successfully!',
+    errorMessage: 'Failed to submit rating: {error}',
+    cancelText: 'Cancel',
+    submitText: 'Submit Rating',
+    editText: 'Update Rating'
   }
 };
 
