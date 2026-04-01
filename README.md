@@ -1,79 +1,130 @@
-# Neighbor Aid Connect - Comprehensive AI Assistant Guide
-*This README is explicitly designed to help other AI assistants (and developers) fully understand the architecture, data flow, and inner workings of the Neighbor Aid Connect platform.*
+# Neighbor Aid Connect - Comprehensive AI Developer Guide
+
+*This README is explicitly designed to serve as a high-fidelity system prompt and technical guide for any AI assistant (like Gemini, Claude, or ChatGPT) or human developer interacting with the Neighbor Aid Connect codebase. Read this carefully to understand the exact architecture, data models, workflows, and strict conventions utilized in this project.*
 
 ## 1. Project Overview
-"Neighbor Aid Connect" is a community-driven web application built to connect local residents with service workers, volunteers, and staff. The platform facilitates the creation of "Help Requests," enables real-time communication via WebSockets, and incorporates a reputation/rating system to build trust.
+**Neighbor Aid Connect** is a community-centric web application built to connect local residents with local service workers, volunteers, and administrative staff. The platform facilitates "Help Requests", features real-time WebSocket communication, incorporates a unified reputation/rating system, and offers specialized workflows for direct worker hiring and community events.
 
-**Tech Stack**:
-- **Frontend**: React 19, Vite, React Router, TailwindCSS v3.4+, Material UI, Socket.io-client.
-- **Backend**: Node.js, Express.js, MongoDB (Mongoose), Socket.io.
-- **AI Integration**: Google Generative AI (`@google/generative-ai`) for the Resident Assistant.
-- **Authentication**: JWT (JSON Web Tokens) with standard bcrypt password hashing.
-
----
-
-## 2. User Roles and Permissions
-Users in the system (`userSchema`) have a distinct `userType` and `role`:
-- **Resident** (`userType: 'resident'`): Can post help requests, join community events, rate completed tasks, and use the Resident AI Assistant.
-- **Worker / Staff** (`userType: 'worker'`): Can browse requests related strictly to their profession (`job` field such as electrician, plumber, maid), offer help, and complete tasks. They cannot *create* help requests themselves.
-- **Admin** (`isAdmin: true`, `role: 'admin'`): Can create community events, manage groups, and block/unblock users. Admins have overarching visibility.
-- **Volunteer**: Similar to workers but typically providing uncompensated help.
+### Tech Stack
+- **Frontend**: React 19, Vite, React Router DOM, Tailwind CSS v3.4+, Material UI v7, Socket.io-client, Axios, Emotion.
+- **Backend**: Node.js, Express.js (v5), MongoDB (Mongoose), Socket.io, JWT, bcryptjs.
+- **AI Integration**: Google Generative AI (`@google/generative-ai`) powers a localized Resident Assistant.
 
 ---
 
-## 3. Core Workflows & Data Models
+## 2. Directory Structure & Key Files
 
-### A. Help Requests Workflow (`/api/requests`)
-1. **Creation**: Residents create tasks (`category`, `description`, `urgency`, `preferredTime`). If a `staffMemberId` is provided, a direct socket notification is dispatched via `directServiceRequest`.
-2. **Filtering**: Workers pull requests from `GET /api/requests/all`. The backend cross-references the worker's `job` against the map `mapWorkerProfessionToCategory` to filter visible requests (e.g., plumbers only see plumbing requests). It also completely excludes requests if either party has blocked the other.
-3. **Acceptance (In-Progress)**: A worker/volunteer offers help (`PUT /api/requests/:id` with `status: 'in-progress'` and `completedBy: workerId`).
-4. **Completion**: The worker marks the task as `completed`.
-5. **Rating**: Once completed, the resident who posted the request receives a prompt to rate the worker (`PATCH /api/requests/:id/rate` or `POST /api/ratings`). **Important Logic Detail:** The frontend uses `updatedRequest.userId === getUserId()` to conditionally show the rating modal.
+The project follows a standard client-server monorepo structure:
 
-### B. Chat & Real-Time Messaging (`/api/chats`, `/api/messages`, Socket.io)
-- **Direct Messaging**: Users can chat 1-on-1. The dashboard conditionally generates *synthetic* chat rows out of active/accepted requests if a chat doesn't exist yet in the database.
-- **Group Chats**: Primarily used for Admins communicating with residents or for Community Events.
-- **WebSockets**:
-  - `joinRoom`: Uses the user's ID as the room name for personal notifications.
-  - Chat rooms use the `chatId` for message broadcasting (`room: chatId`).
-  - Active events: `newMessage`, `requestHelp`, `newHelpRequest`, `directServiceRequest`.
-
-### C. Rating System (`/api/ratings`)
-- Ratings belong strictly to a `Request` and target a `User` (`ratedUserId`).
-- When a new rating is processed, the backend updates the `Request` document to include standard rating metrics AND updates the `User` document (`rating` object: `average` and `totalRatings`).
-- A dedicated socket event `newRating` is dispatched to the rated worker.
-
-### D. Community Events (`/api/events`)
-- Created by Admins. When a Resident joins an event (`POST /events/:id/join`), the system automatically creates or adds them to a corresponding Group Chat linked to the event.
-
-### E. AI Resident Assistant (`/api/assistant`)
-- Uses Google Gemini to answer resident queries dynamically. It acts as a concierge, providing guidance about the community platform.
+```
+Neighbor-aid-connect/
+├── client/                      # React Frontend (Vite)
+│   ├── src/
+│   │   ├── components/          # React components (Dashboard, Modals, Chat, Home, etc.)
+│   │   │   ├── dashboard.jsx    # Core monolith component handling multiple tabs/views.
+│   │   │   ├── ChatApplication.jsx # Unified interface for 1-1 and group chats.
+│   │   │   ├── RatingModal.jsx  # Handles end-of-service reviews.
+│   │   │   └── ...
+│   │   ├── config/              # Dynamic configurable settings (API Base URL, Categories).
+│   │   ├── App.jsx              # Main React App routing.
+│   │   └── main.jsx             # React entry point.
+│   └── package.json
+│
+├── server/                      # Node/Express Backend
+│   ├── config/                  # Server configuration, ENV bindings.
+│   ├── middleware/              # JWT auth and role-checking middleware.
+│   ├── models/                  # Mongoose Schemas (userSchema, requestSchema, etc.)
+│   ├── prompts/                 # System prompts for Gemini AI features.
+│   ├── routes/                  # Express route handlers.
+│   │   ├── authRoutes.js        # Registration, Login, Create Admin.
+│   │   ├── requestRoutes.js     # CRUD for help requests.
+│   │   ├── chatRoutes.js        # Chat APIs.
+│   │   └── ...
+│   ├── services/                # Specialized logic (e.g., AI integration).
+│   ├── index.js                 # Server entry point + Socket.io listener initialization.
+│   ├── seed.js                  # Database seeder.
+│   └── package.json
+│
+└── *.md                         # Specific documentation files (see section 9).
+```
 
 ---
 
-## 4. Frontend Component Architecture (`client/src/components/`)
-- **`dashboard.jsx`**: The monolithic dashboard handling multiple tabs (`overview`, `requests`, `staff`, `chats`, `community`, `directory`, `admin`). It manages socket connections, lists filtered UI tables based on `activeTab`, generates synthetic chat contacts for new tasks, and parses local storage for JWT auth.
-- **`RatingModal.jsx`**: Auto-triggers upon task completion. Handles granular (communication, quality) and overall star ratings.
-- **`ServiceRequestModal.jsx`**: Used when a Resident requests a specific worker directly from the Staff tab.
-- **`ChatApplication.jsx`**: Unified interface for direct and group messages.
-- **`config/config.js`**: Contains static configurations, dynamic label mappings, text prompts, icon mappings, and API Base URL resolutions.
+## 3. Data Models (`server/models/`)
+
+The application relies on carefully structured relational data in MongoDB.
+
+- **User** (`userSchema.js`):
+  - `userType`: Identifies the high-level actor (`'resident'`, `'worker'`, etc.).
+  - `role`: System-level permission (`'user'`, `'admin'`).
+  - Workers have specialized fields like `job` (profession), `availability`, and `rating`.
+- **Request** (`requestSchema.js`):
+  - Represents a task. Fields: `title`, `description`, `category`, `urgency`, `status` (e.g., `'open'`, `'in-progress'`, `'completed'`).
+  - `userId`: Author (Resident).
+  - `staffMemberId`: (Optional) ID for direct worker requests.
+  - `completedBy`: Worker who accepted and finalized the task.
+- **Rating** (`ratingSchema.js`):
+  - Links a `requestId` with a `ratedUserId` (worker) and `reviewerId` (resident). Updates user's overall rating upon save.
+- **Chat & Message** (`chatSchema.js`, `messageSchema.js`):
+  - Chats can be `direct` or `group`. They track `participants`.
+- **Community Events** (`communityEventSchema.js`): Admins create events; residents join, triggering automatic group chat addition.
 
 ---
 
-## 5. Potential Pitfalls / AI Developer Tips
-1. **ESLint Strictness**: The Vite build aggressively fails on unused variables (`react-hooks/exhaustive-deps`, `no-unused-vars`). When injecting logic, always meticulously remove unused imports or variables.
-2. **Entity Comparisons**: MongoDB ObjectIds vs. Strings. When writing frontend equality checks against populated objects from API responses, strictly use `String(request.userId._id || request.userId)` to avoid false negatives.
-3. **Local Storage Types**: `localStorage.getItem('user')` stores a serialized object. It sometimes contains the ID as `id` instead of `_id`. Prefer utility functions like `const getUserId = () => user?._id || user?.id;` across components.
-4. **State Caching**: The Dashboard heavily relies on `allRequests` array state mapping. Any API mutate request (PUT/POST/DELETE) *must* update this local state array immediately to reflect in UI without requiring a hard refresh.
+## 4. Core Workflows (Important for AI Context)
 
-## 6. Development Scripts
-**Client**
-- `npm run dev`: Start Vite dev server.
-- `npm run lint`: Run ESLint.
-- `npm run build`: Build for production.
+### A. Help Request Lifecycle
+1. **Creation**: A Resident submits a request (`POST /api/requests`). If a `staffMemberId` is provided, it's a direct request and bypasses the general open pool; a direct socket event is fired.
+2. **Filtering**: Workers query open requests via `GET /api/requests/all`. The backend cross-references the worker's `job` against specific categories configured in the dynamic configuration.
+3. **Acceptance**: A Worker hits `PUT /api/requests/:id` to change the status to `'in-progress'`, registering themselves as `completedBy` (despite the name, it just assigns them initially).
+4. **Completion**: Worker marks task as `'completed'`.
+5. **Review Trigger**: The frontend application conditionally detects the task's completion and triggers the `<RatingModal />` for the resident. 
 
-**Server**
-- `npm start`: Runs `nodemon index.js`.
-- Defaults to port relying on `.env`, typically 5000 or dynamically mapped.
+### B. Real-Time Socket.io Implementation
+- **Rooms**: Upon login, every user joins a Socket.io room matching their User ID (`socket.join(userId)`). This allows one-to-one push notifications.
+- **Chat**: Users also join rooms matching `chatId` for active discussion tracking.
+- **Events**: Look for events like `newHelpRequest`, `directServiceRequest`, `newMessage`, `ratingUpdate`.
 
-*By adhering to these architectural guidelines, any AI agent can seamlessly assist in extending the codebase or debugging issues within Neighbor Aid Connect.*
+### C. The Configuration System
+- **Static files vs DB**: Configuration is abstracted away from static strings and managed inside `server/config/config.js` and `client/src/config/config.js`. 
+- **Roles & Categories**: When updating roles, job types, or UI aesthetics (colors/icons), refer *only* to the `config.js` files. 
+
+---
+
+## 5. Development Setup & Scripts
+
+**Running Locally:**
+Ensure you have MongoDB running or a valid `MONGODB_URI`. You also need a Gemini API Key.
+
+1. **Root Requirements**: Ensure root `package.json` installs dependencies for monorepo tasks if needed.
+2. **Backend**:
+   - `cd server`
+   - Setup `.env`: `PORT`, `MONGODB_URI`, `JWT_SECRET`, `GEMINI_API_KEY`.
+   - `npm install`
+   - `npm start` (runs `nodemon index.js`)
+3. **Frontend**:
+   - `cd client`
+   - Setup `.env`: `VITE_API_BASE_URL` (usually `http://localhost:5000` or `3000`).
+   - `npm install`
+   - `npm run dev` (starts Vite)
+
+---
+
+## 6. Critical Rules for AI Modifying this Codebase
+
+When requested to build features or fix bugs, strictly adhere to these rules:
+
+1. **State Hydration vs Refresh**: The monolithic `<Dashboard />` relies heavily on mapping cached local state rather than refetching. If an API request mutates data (e.g. accepting a task, sending a message), **ensure the client's local React state array is manually updated** to reflect the change globally without forcing a hard browser refresh.
+2. **Type Coercion on ObjectIds**: MongoDB returns ObjectIds. When comparing IDs in the frontend React code (e.g., verifying if the logged-in user owns a request), always cast to String: `String(item.userId._id || item.userId) === String(currentUser._id)`.
+3. **Strict Linting Enforcement**: Vite is configured with strict ESLint plugins (`react-hooks/exhaustive-deps`, `no-unused-vars`). If you modify imports or refactor variables, meticulously remove unused code. Leaving unused imports will break the client build (`npm run build`).
+4. **Direct Requests vs Open Requests**: Ensure `staffMemberId` logic is rigorously upheld. A request with a `staffMemberId` should NEVER show up on generic public boards for workers.
+
+---
+
+## 7. Deep-Dive Documentation
+
+For specialized domains within this repository, refer to these standalone Markdown files:
+- 📄 `ADMIN_API_DOCUMENTATION.md` - Rules and routes for creating/managing Admin level users.
+- 📄 `ADMIN_SYSTEM_DOCUMENTATION.md` - High-level overview of admin dashboards and permissions.
+- 📄 `DYNAMIC_CONFIGURATION.md` - Detailed explanation of the modular configuration pattern introduced.
+- 📄 `RATING_SYSTEM.md` - Mechanics behind the review/rating mathematics and user metrics updating.
