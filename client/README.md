@@ -1,8 +1,8 @@
-# Neighbor Aid Connect - Comprehensive AI Assistant Guide
-*This README is explicitly designed to help other AI assistants (and developers) fully understand the architecture, data flow, and inner workings of the Neighbor Aid Connect platform.*
+# CommSync - Comprehensive AI Assistant Guide
+*This README is explicitly designed to help other AI assistants (and developers) fully understand the architecture, data flow, and inner workings of the CommSync platform.*
 
 ## 1. Project Overview
-"Neighbor Aid Connect" is a community-driven web application built to connect local residents with service workers, volunteers, and staff. The platform facilitates the creation of "Help Requests," enables real-time communication via WebSockets, and incorporates a reputation/rating system to build trust.
+"CommSync" is a community-driven web application built to connect local residents with service workers, volunteers, and staff. The platform facilitates the creation of "Help Requests," enables real-time communication via WebSockets, and incorporates a reputation/rating system to build trust.
 
 **Tech Stack**:
 - **Frontend**: React 19, Vite, React Router, TailwindCSS v3.4+, Material UI, Socket.io-client.
@@ -76,4 +76,4 @@ Users in the system (`userSchema`) have a distinct `userType` and `role`:
 - `npm start`: Runs `nodemon index.js`.
 - Defaults to port relying on `.env`, typically 5000 or dynamically mapped.
 
-*By adhering to these architectural guidelines, any AI agent can seamlessly assist in extending the codebase or debugging issues within Neighbor Aid Connect.*
+*By adhering to these architectural guidelines, any AI agent can seamlessly assist in extending the codebase or debugging issues within CommSync.*

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Neighbor Aid Connect application now includes a comprehensive rating system that allows users to rate and review helpers after completing service requests. This system provides detailed feedback, rating analytics, and helps build trust within the community.
+The CommSync application now includes a comprehensive rating system that allows users to rate and review helpers after completing service requests. This system provides detailed feedback, rating analytics, and helps build trust within the community.
 
 ## Features
 
@@ -254,4 +254,4 @@ When adding new rating features:
 
 ---
 
-This rating system provides a robust foundation for community feedback and trust-building within the Neighbor Aid Connect platform. 
+This rating system provides a robust foundation for community feedback and trust-building within the CommSync platform. 

@@ -1,18 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import config from "../config/config";
-function MorphingText({ words, interval = 2500 }) {
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setIndex((prev) => (prev + 1) % words.length);
-    }, interval);
-    return () => clearInterval(timer);
-  }, [words.length, interval]);
-  return <span>{words[index]}</span>;
-}
-export default function Home() {
+export default function About() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-orange-50 via-white to-amber-50 text-gray-900">
       <header className="fixed top-0 w-full z-50 backdrop-blur-xl bg-white/80 border-b border-orange-100">
@@ -29,13 +19,13 @@ export default function Home() {
           <nav className="flex items-center gap-2">
             <Link
               to="/"
-              className="px-4 py-2 rounded-full text-sm font-medium text-orange-600 bg-orange-100"
+              className="px-4 py-2 rounded-full text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
             >
               Home
             </Link>
             <Link
               to="/about"
-              className="px-4 py-2 rounded-full text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+              className="px-4 py-2 rounded-full text-sm font-medium text-orange-600 bg-orange-100"
             >
               About
             </Link>
@@ -56,31 +46,17 @@ export default function Home() {
       </header>
 
       <main className="min-h-screen flex items-center justify-center px-6 pt-16">
-        <div className="text-center max-w-3xl">
-          <h1 className="text-4xl md:text-6xl font-extrabold leading-tight text-gray-900">
-            Connecting{" "}
-            <span className="text-orange-500">
-              <MorphingText words={["Neighbors", "Communities", "People"]} />
-            </span>
+        <div className="max-w-3xl text-center">
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-6 text-orange-500">
+            About {config.appName}
           </h1>
-          <p className="mt-6 text-lg text-gray-600">
-            A dynamic community platform where residents can request help, offer
-            support, and stay connected.
+          <p className="text-lg text-gray-600 leading-relaxed">
+            {config.appName} is a neighborhood support platform that helps
+            residents connect with each other for daily assistance,
+            volunteering, and local collaboration. Our goal is to make it easy
+            for people to ask for help, offer skills, and build stronger, safer
+            communities together.
           </p>
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              to="/signup"
-              className="px-6 py-3 rounded-full text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 transition-colors shadow-md"
-            >
-              Get Started
-            </Link>
-            <Link
-              to="/login"
-              className="px-6 py-3 rounded-full text-sm font-semibold text-orange-600 border border-orange-300 hover:bg-orange-50 transition-colors"
-            >
-              Already Have an Account
-            </Link>
-          </div>
         </div>
       </main>
     </div>

@@ -1,131 +1,136 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Star, Filter, SortAsc, SortDesc, MessageSquare } from 'lucide-react';
-import RatingDisplay from './RatingDisplay';
-import RatingStats from './RatingStats';
-import config from '../config/config';
-import RatingModal from './RatingModal';
-
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import {
+  ArrowLeft,
+  Star,
+  Filter,
+  SortAsc,
+  SortDesc,
+  MessageSquare,
+} from "lucide-react";
+import RatingDisplay from "./RatingDisplay";
+import RatingStats from "./RatingStats";
+import config from "../config/config";
+import RatingModal from "./RatingModal";
 export default function UserRatingsPage() {
   const { userId } = useParams();
   const navigate = useNavigate();
   const [ratings, setRatings] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [filter, setFilter] = useState('all'); // all, 5, 4, 3, 2, 1
-  const [sortBy, setSortBy] = useState('createdAt'); // createdAt, stars, helpfulCount
-  const [sortOrder, setSortOrder] = useState('desc'); // asc, desc
-  const [ratingModal, setRatingModal] = useState({ open: false, existingRating: null });
+  const [filter, setFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [ratingModal, setRatingModal] = useState({
+    open: false,
+    existingRating: null,
+  });
   const [editingRating, setEditingRating] = useState(null);
-
   useEffect(() => {
     fetchUserRatings();
     fetchUserStats();
   }, [userId, currentPage, filter, sortBy, sortOrder]);
-
   const fetchUserStats = async () => {
     try {
-      const response = await fetch(`${config.apiBaseUrl}/api/ratings/user/${userId}/stats`);
+      const response = await fetch(
+        `${config.apiBaseUrl}/api/ratings/user/${userId}/stats`,
+      );
       if (response.ok) {
         const data = await response.json();
         setStats(data.stats);
       }
     } catch (err) {
-      console.error('Error fetching user stats:', err);
+      console.error("Error fetching user stats:", err);
     }
   };
-
   const fetchUserRatings = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
         page: currentPage,
         limit: 10,
-        sort: sortBy
+        sort: sortBy,
       });
-
-      if (filter !== 'all') {
-        params.append('stars', filter);
+      if (filter !== "all") {
+        params.append("stars", filter);
       }
-
-      const response = await fetch(`${config.apiBaseUrl}/api/ratings/user/${userId}?${params}`);
+      const response = await fetch(
+        `${config.apiBaseUrl}/api/ratings/user/${userId}?${params}`,
+      );
       if (!response.ok) {
-        throw new Error('Failed to fetch ratings');
+        throw new Error("Failed to fetch ratings");
       }
-
       const data = await response.json();
-
       if (currentPage === 1) {
         setRatings(data.ratings);
       } else {
-        setRatings(prev => [...prev, ...data.ratings]);
+        setRatings((prev) => [...prev, ...data.ratings]);
       }
-
       setHasMore(data.pagination.hasMore);
     } catch (err) {
       setError(err.message);
-      console.error('Error fetching ratings:', err);
+      console.error("Error fetching ratings:", err);
     } finally {
       setLoading(false);
     }
   };
-
   const handleLoadMore = () => {
-    setCurrentPage(prev => prev + 1);
+    setCurrentPage((prev) => prev + 1);
   };
-
   const handleFilterChange = (newFilter) => {
     setFilter(newFilter);
     setCurrentPage(1);
     setRatings([]);
   };
-
   const handleSortChange = (newSortBy) => {
     if (sortBy === newSortBy) {
-      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
     } else {
       setSortBy(newSortBy);
-      setSortOrder('desc');
+      setSortOrder("desc");
     }
     setCurrentPage(1);
     setRatings([]);
   };
-
   const handleHelpfulClick = async (ratingId) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${config.apiBaseUrl}/api/ratings/${ratingId}/helpful`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        `${config.apiBaseUrl}/api/ratings/${ratingId}/helpful`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
       if (response.ok) {
-        // Update the rating in the list
-        setRatings(prev => prev.map(rating =>
-          rating._id === ratingId
-            ? { ...rating, helpfulCount: (rating.helpfulCount || 0) + 1 }
-            : rating
-        ));
+        setRatings((prev) =>
+          prev.map((rating) =>
+            rating._id === ratingId
+              ? {
+                  ...rating,
+                  helpfulCount: (rating.helpfulCount || 0) + 1,
+                }
+              : rating,
+          ),
+        );
       }
     } catch (err) {
-      console.error('Error marking rating as helpful:', err);
+      console.error("Error marking rating as helpful:", err);
     }
   };
-
   const getCurrentUser = () => {
     try {
-      const userData = localStorage.getItem('user');
+      const userData = localStorage.getItem("user");
       return userData ? JSON.parse(userData) : null;
     } catch {
       return null;
     }
   };
-
   if (loading && currentPage === 1) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -136,10 +141,9 @@ export default function UserRatingsPage() {
       </div>
     );
   }
-
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Header */}
+      {}
       <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
         <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
@@ -157,17 +161,17 @@ export default function UserRatingsPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Rating Statistics */}
+        {}
         {stats && (
           <div className="mb-8">
             <RatingStats stats={stats} />
           </div>
         )}
 
-        {/* Filters and Sort */}
+        {}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            {/* Filter */}
+            {}
             <div className="flex items-center space-x-2">
               <Filter size={16} className="text-gray-500" />
               <span className="text-sm font-medium text-gray-700">Filter:</span>
@@ -185,52 +189,54 @@ export default function UserRatingsPage() {
               </select>
             </div>
 
-            {/* Sort */}
+            {}
             <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-gray-700">Sort by:</span>
+              <span className="text-sm font-medium text-gray-700">
+                Sort by:
+              </span>
               <button
-                onClick={() => handleSortChange('createdAt')}
-                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${sortBy === 'createdAt'
-                    ? 'bg-orange-100 text-orange-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                  }`}
+                onClick={() => handleSortChange("createdAt")}
+                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${sortBy === "createdAt" ? "bg-orange-100 text-orange-700" : "text-gray-600 hover:bg-gray-100"}`}
               >
                 <span>Date</span>
-                {sortBy === 'createdAt' && (
-                  sortOrder === 'asc' ? <SortAsc size={14} /> : <SortDesc size={14} />
-                )}
+                {sortBy === "createdAt" &&
+                  (sortOrder === "asc" ? (
+                    <SortAsc size={14} />
+                  ) : (
+                    <SortDesc size={14} />
+                  ))}
               </button>
               <button
-                onClick={() => handleSortChange('stars')}
-                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${sortBy === 'stars'
-                    ? 'bg-orange-100 text-orange-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                  }`}
+                onClick={() => handleSortChange("stars")}
+                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${sortBy === "stars" ? "bg-orange-100 text-orange-700" : "text-gray-600 hover:bg-gray-100"}`}
               >
                 <Star size={14} />
                 <span>Rating</span>
-                {sortBy === 'stars' && (
-                  sortOrder === 'asc' ? <SortAsc size={14} /> : <SortDesc size={14} />
-                )}
+                {sortBy === "stars" &&
+                  (sortOrder === "asc" ? (
+                    <SortAsc size={14} />
+                  ) : (
+                    <SortDesc size={14} />
+                  ))}
               </button>
               <button
-                onClick={() => handleSortChange('helpfulCount')}
-                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${sortBy === 'helpfulCount'
-                    ? 'bg-orange-100 text-orange-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                  }`}
+                onClick={() => handleSortChange("helpfulCount")}
+                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${sortBy === "helpfulCount" ? "bg-orange-100 text-orange-700" : "text-gray-600 hover:bg-gray-100"}`}
               >
                 <MessageSquare size={14} />
                 <span>Helpful</span>
-                {sortBy === 'helpfulCount' && (
-                  sortOrder === 'asc' ? <SortAsc size={14} /> : <SortDesc size={14} />
-                )}
+                {sortBy === "helpfulCount" &&
+                  (sortOrder === "asc" ? (
+                    <SortAsc size={14} />
+                  ) : (
+                    <SortDesc size={14} />
+                  ))}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Ratings List */}
+        {}
         <div className="space-y-4">
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-4">
@@ -242,25 +248,35 @@ export default function UserRatingsPage() {
             <div className="text-center py-8 text-gray-500">
               <Star className="w-12 h-12 mx-auto mb-4 text-gray-300" />
               <p className="text-lg font-medium">No ratings found</p>
-              <p className="text-sm">This user hasn't received any ratings yet.</p>
+              <p className="text-sm">
+                This user hasn't received any ratings yet.
+              </p>
             </div>
           ) : (
             ratings.map((rating) => (
               <div key={rating._id} className="mb-4">
                 <RatingDisplay rating={rating} />
-                {(getCurrentUser() && rating.raterId && (rating.raterId._id === getCurrentUser()._id || rating.raterId === getCurrentUser()._id)) && (
-                  <button
-                    className="text-blue-600 hover:underline ml-2"
-                    onClick={() => setRatingModal({ open: true, existingRating: rating })}
-                  >
-                    Edit Rating
-                  </button>
-                )}
+                {getCurrentUser() &&
+                  rating.raterId &&
+                  (rating.raterId._id === getCurrentUser()._id ||
+                    rating.raterId === getCurrentUser()._id) && (
+                    <button
+                      className="text-blue-600 hover:underline ml-2"
+                      onClick={() =>
+                        setRatingModal({
+                          open: true,
+                          existingRating: rating,
+                        })
+                      }
+                    >
+                      Edit Rating
+                    </button>
+                  )}
               </div>
             ))
           )}
 
-          {/* Load More Button */}
+          {}
           {hasMore && (
             <div className="text-center pt-4">
               <button
@@ -268,7 +284,7 @@ export default function UserRatingsPage() {
                 disabled={loading}
                 className="px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors disabled:opacity-50"
               >
-                {loading ? 'Loading...' : 'Load More Ratings'}
+                {loading ? "Loading..." : "Load More Ratings"}
               </button>
             </div>
           )}
@@ -276,10 +292,15 @@ export default function UserRatingsPage() {
       </div>
       <RatingModal
         open={ratingModal.open}
-        onClose={() => setRatingModal({ open: false, existingRating: null })}
+        onClose={() =>
+          setRatingModal({
+            open: false,
+            existingRating: null,
+          })
+        }
         existingRating={ratingModal.existingRating}
         onRated={fetchUserRatings}
       />
     </div>
   );
-} 
+}

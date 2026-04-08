@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Neighbor Aid Connect platform now includes a comprehensive admin system that allows administrators to monitor, manage, and oversee all user activities. This system provides secure access control, detailed activity logging, and powerful management tools.
+The CommSync platform now includes a comprehensive admin system that allows administrators to monitor, manage, and oversee all user activities. This system provides secure access control, detailed activity logging, and powerful management tools.
 
 ## Key Features
 

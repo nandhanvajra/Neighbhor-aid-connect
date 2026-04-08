@@ -15,7 +15,6 @@ Rating model:
 - Important fields: requestId, raterId (resident), ratedUserId (worker), stars, review, category.
 - Optional sub-scores may exist: qualityOfWork, communication, professionalism.
 `;
-
 const INTENT_EXTRACTION_SYSTEM_PROMPT = `
 You are an intent extraction engine for resident questions about workers and service performance.
 Understand natural language, fuzzy wording, and typos.
@@ -54,7 +53,6 @@ Rules:
 - For "best reviews" / feedback-heavy ranking with intent "top_workers", set rankingBy to "feedback".
 - If query is out of scope, return intent as "unsupported".
 `;
-
 const RESULT_SUMMARY_SYSTEM_PROMPT = `
 You are a resident-facing assistant.
 Given the original question, parsed intent, and structured MongoDB results, write a concise natural-language response.
@@ -65,9 +63,8 @@ Rules:
 - If no data, say no matching workers/feedback were found and suggest refining filters.
 - Do not fabricate or assume unavailable details.
 `;
-
 module.exports = {
   SCHEMA_SUMMARY,
   INTENT_EXTRACTION_SYSTEM_PROMPT,
-  RESULT_SUMMARY_SYSTEM_PROMPT
+  RESULT_SUMMARY_SYSTEM_PROMPT,
 };

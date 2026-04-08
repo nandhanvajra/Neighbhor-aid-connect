@@ -1,47 +1,50 @@
-import React, { useState } from 'react';
-import { X, Calendar, Clock, MapPin, FileText, AlertCircle } from 'lucide-react';
-import config from '../config/config';
-
+import React, { useState } from "react";
+import {
+  X,
+  Calendar,
+  Clock,
+  MapPin,
+  FileText,
+  AlertCircle,
+} from "lucide-react";
+import config from "../config/config";
 const ServiceRequestModal = ({ isOpen, onClose, staffMember, onSubmit }) => {
   const [formData, setFormData] = useState({
-    serviceType: '',
-    description: '',
-    preferredDate: '',
-    preferredTime: '',
-    address: '',
-    urgency: 'medium',
-    additionalNotes: ''
+    serviceType: "",
+    description: "",
+    preferredDate: "",
+    preferredTime: "",
+    address: "",
+    urgency: "medium",
+    additionalNotes: "",
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
+  const [error, setError] = useState("");
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
-
+    setError("");
     try {
-      // Validate required fields
-      if (!formData.serviceType || !formData.description || !formData.preferredDate) {
+      if (
+        !formData.serviceType ||
+        !formData.description ||
+        !formData.preferredDate
+      ) {
         throw new Error(config.serviceRequestModal.requiredFieldText);
       }
-
-      // Call the onSubmit function passed from parent
       await onSubmit({
         ...formData,
         staffMemberId: staffMember._id,
-        staffMemberName: staffMember.name
+        staffMemberName: staffMember.name,
       });
-
-      // Reset form and close modal
       setFormData({
-        serviceType: '',
-        description: '',
-        preferredDate: '',
-        preferredTime: '',
-        address: '',
-        urgency: 'medium',
-        additionalNotes: ''
+        serviceType: "",
+        description: "",
+        preferredDate: "",
+        preferredTime: "",
+        address: "",
+        urgency: "medium",
+        additionalNotes: "",
       });
       onClose();
     } catch (err) {
@@ -50,31 +53,35 @@ const ServiceRequestModal = ({ isOpen, onClose, staffMember, onSubmit }) => {
       setLoading(false);
     }
   };
-
   const handleClose = () => {
     setFormData({
-      serviceType: '',
-      description: '',
-      preferredDate: '',
-      preferredTime: '',
-      address: '',
-      urgency: 'medium',
-      additionalNotes: ''
+      serviceType: "",
+      description: "",
+      preferredDate: "",
+      preferredTime: "",
+      address: "",
+      urgency: "medium",
+      additionalNotes: "",
     });
-    setError('');
+    setError("");
     onClose();
   };
-
   if (!isOpen) return null;
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
+        {}
         <div className="flex justify-between items-center p-6 border-b">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">{config.serviceRequestModal.title}</h2>
-            <p className="text-gray-600">{config.serviceRequestModal.subtitle.replace('{name}', staffMember?.name)}</p>
+            <h2 className="text-2xl font-bold text-gray-800">
+              {config.serviceRequestModal.title}
+            </h2>
+            <p className="text-gray-600">
+              {config.serviceRequestModal.subtitle.replace(
+                "{name}",
+                staffMember?.name,
+              )}
+            </p>
           </div>
           <button
             onClick={handleClose}
@@ -84,23 +91,32 @@ const ServiceRequestModal = ({ isOpen, onClose, staffMember, onSubmit }) => {
           </button>
         </div>
 
-        {/* Form */}
+        {}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-4 flex items-start">
-              <AlertCircle className="text-red-500 mr-3 mt-0.5 flex-shrink-0" size={16} />
+              <AlertCircle
+                className="text-red-500 mr-3 mt-0.5 flex-shrink-0"
+                size={16}
+              />
               <p className="text-red-700 text-sm">{error}</p>
             </div>
           )}
 
-          {/* Service Type */}
+          {}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {config.serviceRequestModal.serviceTypeLabel} <span className="text-red-500">*</span>
+              {config.serviceRequestModal.serviceTypeLabel}{" "}
+              <span className="text-red-500">*</span>
             </label>
             <select
               value={formData.serviceType}
-              onChange={(e) => setFormData({ ...formData, serviceType: e.target.value })}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  serviceType: e.target.value,
+                })
+              }
               className="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               required
             >
@@ -113,14 +129,20 @@ const ServiceRequestModal = ({ isOpen, onClose, staffMember, onSubmit }) => {
             </select>
           </div>
 
-          {/* Description */}
+          {}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {config.serviceRequestModal.descriptionLabel} <span className="text-red-500">*</span>
+              {config.serviceRequestModal.descriptionLabel}{" "}
+              <span className="text-red-500">*</span>
             </label>
             <textarea
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  description: e.target.value,
+                })
+              }
               rows={4}
               className="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               placeholder={config.serviceRequestModal.descriptionPlaceholder}
@@ -128,18 +150,27 @@ const ServiceRequestModal = ({ isOpen, onClose, staffMember, onSubmit }) => {
             />
           </div>
 
-          {/* Date and Time */}
+          {}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {config.serviceRequestModal.preferredDateLabel} <span className="text-red-500">*</span>
+                {config.serviceRequestModal.preferredDateLabel}{" "}
+                <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                <Calendar
+                  className="absolute left-3 top-2.5 text-gray-400"
+                  size={18}
+                />
                 <input
                   type="date"
                   value={formData.preferredDate}
-                  onChange={(e) => setFormData({ ...formData, preferredDate: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      preferredDate: e.target.value,
+                    })
+                  }
                   className="w-full border border-gray-300 rounded-md pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   required
                 />
@@ -150,42 +181,63 @@ const ServiceRequestModal = ({ isOpen, onClose, staffMember, onSubmit }) => {
                 {config.serviceRequestModal.preferredTimeLabel}
               </label>
               <div className="relative">
-                <Clock className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                <Clock
+                  className="absolute left-3 top-2.5 text-gray-400"
+                  size={18}
+                />
                 <input
                   type="time"
                   value={formData.preferredTime}
-                  onChange={(e) => setFormData({ ...formData, preferredTime: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      preferredTime: e.target.value,
+                    })
+                  }
                   className="w-full border border-gray-300 rounded-md pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
             </div>
           </div>
 
-          {/* Address */}
+          {}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               {config.serviceRequestModal.addressLabel}
             </label>
             <div className="relative">
-              <MapPin className="absolute left-3 top-2.5 text-gray-400" size={18} />
+              <MapPin
+                className="absolute left-3 top-2.5 text-gray-400"
+                size={18}
+              />
               <input
                 type="text"
                 value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    address: e.target.value,
+                  })
+                }
                 className="w-full border border-gray-300 rounded-md pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder={config.serviceRequestModal.addressPlaceholder}
               />
             </div>
           </div>
 
-          {/* Urgency */}
+          {}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               {config.serviceRequestModal.urgencyLabel}
             </label>
             <select
               value={formData.urgency}
-              onChange={(e) => setFormData({ ...formData, urgency: e.target.value })}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  urgency: e.target.value,
+                })
+              }
               className="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             >
               {config.urgencyLevels.map((urgency) => (
@@ -196,24 +248,34 @@ const ServiceRequestModal = ({ isOpen, onClose, staffMember, onSubmit }) => {
             </select>
           </div>
 
-          {/* Additional Notes */}
+          {}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               {config.serviceRequestModal.additionalNotesLabel}
             </label>
             <div className="relative">
-              <FileText className="absolute left-3 top-2.5 text-gray-400" size={18} />
+              <FileText
+                className="absolute left-3 top-2.5 text-gray-400"
+                size={18}
+              />
               <textarea
                 value={formData.additionalNotes}
-                onChange={(e) => setFormData({ ...formData, additionalNotes: e.target.value })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    additionalNotes: e.target.value,
+                  })
+                }
                 rows={3}
                 className="w-full border border-gray-300 rounded-md pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                placeholder={config.serviceRequestModal.additionalNotesPlaceholder}
+                placeholder={
+                  config.serviceRequestModal.additionalNotesPlaceholder
+                }
               />
             </div>
           </div>
 
-          {/* Buttons */}
+          {}
           <div className="flex justify-end space-x-4 pt-4 border-t">
             <button
               type="button"
@@ -225,11 +287,11 @@ const ServiceRequestModal = ({ isOpen, onClose, staffMember, onSubmit }) => {
             <button
               type="submit"
               disabled={loading}
-              className={`px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors ${
-                loading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
+              className={`px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
             >
-              {loading ? config.serviceRequestModal.submittingText : config.serviceRequestModal.submitText}
+              {loading
+                ? config.serviceRequestModal.submittingText
+                : config.serviceRequestModal.submitText}
             </button>
           </div>
         </form>
@@ -237,5 +299,4 @@ const ServiceRequestModal = ({ isOpen, onClose, staffMember, onSubmit }) => {
     </div>
   );
 };
-
-export default ServiceRequestModal; 
+export default ServiceRequestModal;

@@ -1,106 +1,97 @@
-const mongoose = require('mongoose');
-const config = require('../config/config');
-
+const mongoose = require("mongoose");
+const config = require("../config/config");
 const requestSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    ref: "User",
+    required: true,
   },
   category: {
     type: String,
     enum: config.serviceCategories,
-    required: true
+    required: true,
   },
   description: {
     type: String,
     required: true,
-    trim: true
+    trim: true,
   },
   urgency: {
     type: String,
     enum: config.urgencyLevels,
-    required: true
+    required: true,
   },
   preferredTime: {
     type: String,
-    required: true
+    required: true,
   },
   addressNote: {
     type: String,
-    trim: true
+    trim: true,
   },
   status: {
     type: String,
     enum: config.requestStatuses,
-    default: 'pending'
+    default: "pending",
   },
   createdAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
   updatedAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
   completedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: "User",
   },
   requestedWorkerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null
+    ref: "User",
+    default: null,
   },
-  // Enhanced rating system
   rating: {
     stars: {
       type: Number,
       min: 1,
       max: 5,
       validate: {
-        validator: function(v) {
+        validator: function (v) {
           return v === null || (v >= 1 && v <= 5);
         },
-        message: 'Rating must be between 1 and 5'
-      }
+        message: "Rating must be between 1 and 5",
+      },
     },
     review: {
       type: String,
       maxlength: 500,
-      trim: true
+      trim: true,
     },
     ratedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
+      ref: "User",
     },
     ratedAt: {
       type: Date,
-      default: Date.now
-    }
-  }
+      default: Date.now,
+    },
+  },
 });
-
-// Update the updatedAt field on save
-requestSchema.pre('save', function(next) {
+requestSchema.pre("save", function (next) {
   this.updatedAt = Date.now();
   next();
 });
-
-// Virtual for checking if request is rated
-requestSchema.virtual('isRated').get(function() {
+requestSchema.virtual("isRated").get(function () {
   return this.rating && this.rating.stars && this.rating.ratedBy;
 });
-
-// Virtual for getting rating display
-requestSchema.virtual('ratingDisplay').get(function() {
+requestSchema.virtual("ratingDisplay").get(function () {
   if (!this.rating || !this.rating.stars) return null;
   return {
     stars: this.rating.stars,
     review: this.rating.review,
-    ratedAt: this.rating.ratedAt
+    ratedAt: this.rating.ratedAt,
   };
 });
-
-const Request = mongoose.model('Request', requestSchema);
+const Request = mongoose.model("Request", requestSchema);
 module.exports = Request;

@@ -1,6 +1,6 @@
 # Dynamic Configuration Implementation
 
-This document outlines the changes made to convert static parts of the Neighbor Aid Connect project to dynamic, configurable components.
+This document outlines the changes made to convert static parts of the CommSync project to dynamic, configurable components.
 
 ## Overview
 
@@ -80,7 +80,7 @@ Create a `.env` file in the client directory:
 
 ```env
 VITE_API_BASE_URL=http://localhost:3000
-VITE_APP_NAME=Neighbor Aid Connect
+VITE_APP_NAME=CommSync
 VITE_APP_VERSION=1.0.0
 ```
 

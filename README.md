@@ -1,9 +1,9 @@
-# Neighbor Aid Connect - Comprehensive AI Developer Guide
+# CommSync - Comprehensive AI Developer Guide
 
-*This README is explicitly designed to serve as a high-fidelity system prompt and technical guide for any AI assistant (like Gemini, Claude, or ChatGPT) or human developer interacting with the Neighbor Aid Connect codebase. Read this carefully to understand the exact architecture, data models, workflows, and strict conventions utilized in this project.*
+*This README is explicitly designed to serve as a high-fidelity system prompt and technical guide for any AI assistant (like Gemini, Claude, or ChatGPT) or human developer interacting with the CommSync codebase. Read this carefully to understand the exact architecture, data models, workflows, and strict conventions utilized in this project.*
 
 ## 1. Project Overview
-**Neighbor Aid Connect** is a community-centric web application built to connect local residents with local service workers, volunteers, and administrative staff. The platform facilitates "Help Requests", features real-time WebSocket communication, incorporates a unified reputation/rating system, and offers specialized workflows for direct worker hiring and community events.
+**CommSync** is a community-centric web application built to connect local residents with local service workers, volunteers, and administrative staff. The platform facilitates "Help Requests", features real-time WebSocket communication, incorporates a unified reputation/rating system, and offers specialized workflows for direct worker hiring and community events.
 
 ### Tech Stack
 - **Frontend**: React 19, Vite, React Router DOM, Tailwind CSS v3.4+, Material UI v7, Socket.io-client, Axios, Emotion.
@@ -17,7 +17,7 @@
 The project follows a standard client-server monorepo structure:
 
 ```
-Neighbor-aid-connect/
+CommSync/
 ├── client/                      # React Frontend (Vite)
 │   ├── src/
 │   │   ├── components/          # React components (Dashboard, Modals, Chat, Home, etc.)

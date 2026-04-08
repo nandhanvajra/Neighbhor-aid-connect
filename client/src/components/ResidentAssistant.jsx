@@ -1,70 +1,77 @@
-import React, { useState } from 'react';
-import config from '../config/config';
-
+import React, { useState } from "react";
+import config from "../config/config";
 const SAMPLE_PROMPTS = [
-  'Who are the top plumbers?',
-  'Show top 3 maids',
-  'Which workers completed the most requests?',
-  'What do people say about Ravi?'
+  "Who are the top plumbers?",
+  "Show top 3 maids",
+  "Which workers completed the most requests?",
+  "What do people say about Ravi?",
 ];
-
 export default function ResidentAssistant({ token }) {
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [messages, setMessages] = useState([
     {
-      role: 'assistant',
-      text: 'Hi! Ask me about top workers, completed jobs, or service feedback.'
-    }
+      role: "assistant",
+      text: "Hi! Ask me about top workers, completed jobs, or service feedback.",
+    },
   ]);
   const [loading, setLoading] = useState(false);
-
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed || loading) return;
-
-    setMessages(prev => [...prev, { role: 'user', text: trimmed }]);
-    setInput('');
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        text: trimmed,
+      },
+    ]);
+    setInput("");
     setLoading(true);
-
     try {
       const response = await fetch(`${config.apiBaseUrl}/api/assistant`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ message: trimmed })
+        body: JSON.stringify({
+          message: trimmed,
+        }),
       });
-
       let data = null;
       try {
         data = await response.json();
       } catch {
         data = null;
       }
-
       const reply =
         data?.reply ||
         data?.message ||
         (!response.ok
           ? `Request failed (${response.status}). Please try again.`
-          : 'I could not process that request right now.');
-
+          : "I could not process that request right now.");
       if (import.meta.env.DEV) {
-        console.log('Assistant intent:', data?.intent);
+        console.log("Assistant intent:", data?.intent);
       }
-
-      setMessages(prev => [...prev, { role: 'assistant', text: reply }]);
-    } catch (error) {
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
-        { role: 'assistant', text: 'Something went wrong while contacting the assistant.' }
+        {
+          role: "assistant",
+          text: reply,
+        },
+      ]);
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: "Something went wrong while contacting the assistant.",
+        },
       ]);
     } finally {
       setLoading(false);
     }
   };
-
   return (
     <section>
       <h2 className="text-2xl font-bold text-gray-800 mb-4">AI Assistant</h2>
@@ -73,21 +80,19 @@ export default function ResidentAssistant({ token }) {
           {messages.map((msg, index) => (
             <div
               key={`${msg.role}-${index}`}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
-                  msg.role === 'user'
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-white text-gray-800 border'
-                }`}
+                className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${msg.role === "user" ? "bg-orange-500 text-white" : "bg-white text-gray-800 border"}`}
               >
                 {msg.text}
               </div>
             </div>
           ))}
           {loading && (
-            <div className="text-sm text-gray-500">Assistant is thinking...</div>
+            <div className="text-sm text-gray-500">
+              Assistant is thinking...
+            </div>
           )}
         </div>
 
@@ -95,9 +100,9 @@ export default function ResidentAssistant({ token }) {
           <input
             type="text"
             value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') handleSend();
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSend();
             }}
             placeholder="Ask: top plumbers, best maids by rating, feedback for Ravi..."
             className="flex-1 border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400"
@@ -114,7 +119,7 @@ export default function ResidentAssistant({ token }) {
         <div className="mt-3">
           <p className="text-xs text-gray-500 mb-2">Try asking:</p>
           <div className="flex flex-wrap gap-2">
-            {SAMPLE_PROMPTS.map(prompt => (
+            {SAMPLE_PROMPTS.map((prompt) => (
               <button
                 key={prompt}
                 type="button"
